@@ -1,0 +1,228 @@
+#pragma once
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#include <imgui.h>
+#include <imgui_internal.h>
+#include <algorithm>
+#include <string>
+#include "../Core/Config.h"
+
+namespace UI {
+
+    inline void ToggleClickability(HWND targetHwnd, bool clickable) {
+        if (!targetHwnd) return;
+        LONG_PTR exStyle = GetWindowLongPtr(targetHwnd, GWL_EXSTYLE);
+        exStyle = clickable ? (exStyle & ~WS_EX_TRANSPARENT) : (exStyle | WS_EX_TRANSPARENT);
+        SetWindowLongPtr(targetHwnd, GWL_EXSTYLE, exStyle);
+        SetLayeredWindowAttributes(targetHwnd, RGB(0, 0, 0), 255, LWA_ALPHA);
+        RedrawWindow(targetHwnd, nullptr, nullptr, RDW_ERASE | RDW_INVALIDATE | RDW_FRAME);
+    }
+
+    // Configuración de estilo idéntica a la referencia minimalista (BR MODS style)
+    inline void SetupImGuiStyle() {
+        ImGuiStyle& style = ImGui::GetStyle();
+
+        style.Alpha = 1.0f;
+        style.DisabledAlpha = 0.35f;
+        style.WindowPadding = ImVec2(0.0f, 0.0f);
+        style.WindowRounding = 12.0f;
+        style.WindowBorderSize = 1.0f;
+        style.WindowMinSize = ImVec2(100.0f, 100.0f);
+        style.WindowTitleAlign = ImVec2(0.0f, 0.5f);
+        style.FramePadding = ImVec2(8.0f, 3.0f);
+        style.FrameRounding = 6.0f;
+        style.FrameBorderSize = 0.0f;
+        style.ItemSpacing = ImVec2(6.0f, 8.0f);
+        style.ItemInnerSpacing = ImVec2(6.0f, 4.0f);
+        style.IndentSpacing = 10.0f;
+        style.ScrollbarSize = 5.0f;
+        style.ScrollbarRounding = 4.0f;
+        style.GrabMinSize = 10.0f;
+        style.GrabRounding = 6.0f;
+        style.TabRounding = 6.0f;
+        style.ButtonTextAlign = ImVec2(0.5f, 0.5f);
+
+        // Paleta exacta de la imagen de referencia: fondo carbón profundo, acento azul brillante
+        ImVec4 accentBlue = ImVec4(0.11f, 0.55f, 0.98f, 1.0f); // #1d8cf8
+
+        style.Colors[ImGuiCol_Text] = ImVec4(0.92f, 0.94f, 0.98f, 1.0f);
+        style.Colors[ImGuiCol_TextDisabled] = ImVec4(0.42f, 0.46f, 0.55f, 1.0f);
+        style.Colors[ImGuiCol_WindowBg] = ImVec4(0.055f, 0.06f, 0.075f, 0.98f); // #0e0f13
+        style.Colors[ImGuiCol_ChildBg] = ImVec4(0.075f, 0.082f, 0.106f, 1.0f);  // #13151b
+        style.Colors[ImGuiCol_PopupBg] = ImVec4(0.07f, 0.08f, 0.10f, 0.98f);
+        style.Colors[ImGuiCol_Border] = ImVec4(0.12f, 0.13f, 0.17f, 0.70f);
+        style.Colors[ImGuiCol_BorderShadow] = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
+        style.Colors[ImGuiCol_FrameBg] = ImVec4(0.11f, 0.13f, 0.17f, 0.85f);
+        style.Colors[ImGuiCol_FrameBgHovered] = ImVec4(0.14f, 0.17f, 0.23f, 1.0f);
+        style.Colors[ImGuiCol_FrameBgActive] = ImVec4(0.18f, 0.22f, 0.30f, 1.0f);
+        style.Colors[ImGuiCol_TitleBg] = ImVec4(0.055f, 0.06f, 0.075f, 1.0f);
+        style.Colors[ImGuiCol_TitleBgActive] = ImVec4(0.055f, 0.06f, 0.075f, 1.0f);
+        style.Colors[ImGuiCol_TitleBgCollapsed] = ImVec4(0.055f, 0.06f, 0.075f, 0.5f);
+        style.Colors[ImGuiCol_MenuBarBg] = ImVec4(0.055f, 0.06f, 0.075f, 1.0f);
+        style.Colors[ImGuiCol_ScrollbarBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
+        style.Colors[ImGuiCol_ScrollbarGrab] = ImVec4(0.20f, 0.22f, 0.28f, 0.8f);
+        style.Colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0.30f, 0.33f, 0.42f, 1.0f);
+        style.Colors[ImGuiCol_ScrollbarGrabActive] = ImVec4(0.40f, 0.44f, 0.55f, 1.0f);
+        style.Colors[ImGuiCol_CheckMark] = accentBlue;
+        style.Colors[ImGuiCol_SliderGrab] = accentBlue;
+        style.Colors[ImGuiCol_SliderGrabActive] = ImVec4(0.25f, 0.65f, 1.0f, 1.0f);
+        style.Colors[ImGuiCol_Button] = ImVec4(0.11f, 0.13f, 0.17f, 0.80f);
+        style.Colors[ImGuiCol_ButtonHovered] = ImVec4(0.16f, 0.19f, 0.25f, 1.0f);
+        style.Colors[ImGuiCol_ButtonActive] = ImVec4(0.20f, 0.24f, 0.32f, 1.0f);
+        style.Colors[ImGuiCol_Header] = ImVec4(0.12f, 0.14f, 0.19f, 0.80f);
+        style.Colors[ImGuiCol_HeaderHovered] = ImVec4(0.16f, 0.19f, 0.26f, 1.0f);
+        style.Colors[ImGuiCol_HeaderActive] = ImVec4(0.20f, 0.24f, 0.33f, 1.0f);
+        style.Colors[ImGuiCol_Separator] = ImVec4(0.11f, 0.55f, 0.98f, 0.80f); // Separador azul
+    }
+
+    // Interruptor tipo Cápsula / iOS Toggle Switch (Idéntico a la imagen)
+    inline bool ToggleSwitch(const char* label, bool* v, float width = 36.0f, float height = 18.0f) {
+        ImGuiWindow* window = ImGui::GetCurrentWindow();
+        if (window->SkipItems) return false;
+
+        ImGuiContext& g = *GImGui;
+        const ImGuiStyle& style = g.Style;
+        const ImGuiID id = window->GetID(label);
+        const ImVec2 label_size = ImGui::CalcTextSize(label, NULL, true);
+
+        float availW = ImGui::GetContentRegionAvail().x;
+        ImVec2 p = window->DC.CursorPos;
+
+        // Texto a la izquierda con padding y color limpio
+        if (label[0] != '#' || label[1] != '#') {
+            window->DrawList->AddText(
+                ImVec2(p.x, p.y + (height - label_size.y) * 0.5f),
+                IM_COL32(230, 234, 245, 255),
+                label
+            );
+        }
+
+        // Posición del switch cápsula alineado al extremo derecho
+        ImVec2 switchPos = ImVec2(p.x + availW - width, p.y);
+        const ImRect total_bb(p, ImVec2(p.x + availW, p.y + height));
+        const ImRect switch_bb(switchPos, ImVec2(switchPos.x + width, switchPos.y + height));
+
+        ImGui::ItemSize(total_bb, style.FramePadding.y);
+        if (!ImGui::ItemAdd(total_bb, id)) return false;
+
+        bool hovered, held;
+        bool pressed = ImGui::ButtonBehavior(switch_bb, id, &hovered, &held);
+        if (pressed) {
+            *v = !(*v);
+            ImGui::MarkItemEdited(id);
+        }
+
+        float radius = height * 0.5f;
+        float t = *v ? 1.0f : 0.0f;
+
+        // Fondo cápsula: Azul eléctrico brillante activo (#1d8cf8) o gris oscuro mate inactivo (#333744)
+        ImU32 bg_col = *v ? IM_COL32(29, 140, 248, 255) : (hovered ? IM_COL32(58, 63, 78, 255) : IM_COL32(48, 52, 65, 255));
+        window->DrawList->AddRectFilled(switchPos, ImVec2(switchPos.x + width, switchPos.y + height), bg_col, radius);
+
+        // Perilla circular blanca pura (#ffffff) con radio perfecto
+        float knobRadius = radius - 2.5f;
+        float knobX = switchPos.x + radius + t * (width - 2.0f * radius);
+        window->DrawList->AddCircleFilled(ImVec2(knobX, switchPos.y + radius), knobRadius, IM_COL32(255, 255, 255, 255), 16);
+
+        return pressed;
+    }
+
+    // Slider Minimalista Exacto a la Referencia (Label izq, Valor der, Pista fina y Knob circular azul)
+    inline bool MinimalSlider(const char* label, float* v, float v_min, float v_max, const char* format = "%.2f") {
+        ImGuiWindow* window = ImGui::GetCurrentWindow();
+        if (window->SkipItems) return false;
+
+        ImGuiContext& g = *GImGui;
+        const ImGuiID id = window->GetID(label);
+
+        float availW = ImGui::GetContentRegionAvail().x;
+        char valBuf[32];
+        sprintf_s(valBuf, format, *v);
+
+        // Fila 1: Etiqueta a la izquierda y valor a la derecha
+        ImGui::TextColored(ImVec4(0.88f, 0.90f, 0.96f, 1.0f), label);
+        ImVec2 valSize = ImGui::CalcTextSize(valBuf);
+        ImGui::SameLine(availW - valSize.x);
+        ImGui::TextColored(ImVec4(0.88f, 0.90f, 0.96f, 1.0f), valBuf);
+
+        // Fila 2: Pista interactiva fina con perilla circular azul
+        ImGui::Dummy(ImVec2(0, 1.0f));
+        ImVec2 p = window->DC.CursorPos;
+        float widgetH = 12.0f;
+        float trackH = 3.5f;
+        float grabRadius = 5.0f;
+
+        const ImRect total_bb(p, ImVec2(p.x + availW, p.y + widgetH));
+        ImGui::ItemSize(total_bb, 0.0f);
+        if (!ImGui::ItemAdd(total_bb, id)) return false;
+
+        bool hovered, held;
+        ImGui::ButtonBehavior(total_bb, id, &hovered, &held);
+
+        if (held) {
+            float mouseX = g.IO.MousePos.x;
+            float normalized = std::clamp((mouseX - (p.x + grabRadius)) / (availW - 2.0f * grabRadius), 0.0f, 1.0f);
+            *v = v_min + normalized * (v_max - v_min);
+            ImGui::MarkItemEdited(id);
+        }
+
+        float t = std::clamp((*v - v_min) / (v_max - v_min), 0.0f, 1.0f);
+        float centerY = p.y + widgetH * 0.5f;
+
+        // Pista base (gris oscuro apagado)
+        window->DrawList->AddRectFilled(
+            ImVec2(p.x, centerY - trackH * 0.5f),
+            ImVec2(p.x + availW, centerY + trackH * 0.5f),
+            IM_COL32(38, 42, 54, 255),
+            trackH * 0.5f
+        );
+
+        // Pista activa (azul eléctrico)
+        float grabX = p.x + grabRadius + t * (availW - 2.0f * grabRadius);
+        window->DrawList->AddRectFilled(
+            ImVec2(p.x, centerY - trackH * 0.5f),
+            ImVec2(grabX, centerY + trackH * 0.5f),
+            IM_COL32(29, 140, 248, 255),
+            trackH * 0.5f
+        );
+
+        // Perilla circular azul (#1d8cf8)
+        ImU32 knobCol = (held || hovered) ? IM_COL32(64, 165, 255, 255) : IM_COL32(29, 140, 248, 255);
+        window->DrawList->AddCircleFilled(ImVec2(grabX, centerY), grabRadius, knobCol, 16);
+
+        return held;
+    }
+
+    // Spinner para pantalla de carga
+    inline void DrawCircularProgressBar(float progress, float thickness, ImU32 color, const char* label = "Cargando...") {
+        ImGuiWindow* window = ImGui::GetCurrentWindow();
+        if (window->SkipItems) return;
+
+        ImVec2 avail = ImGui::GetContentRegionAvail();
+        ImVec2 size = ImVec2(120, 120);
+        ImVec2 offset = ImVec2((avail.x - size.x) * 0.5f, (avail.y - size.y) * 0.5f - 10.0f);
+        ImGui::SetCursorPos(offset);
+
+        ImGui::InvisibleButton("##spinner", size);
+        ImVec2 center = ImVec2(ImGui::GetItemRectMin().x + size.x * 0.5f, ImGui::GetItemRectMin().y + size.y * 0.5f);
+        float radius = 35.0f;
+
+        const int num_segments = 60;
+        float angle_start = -IM_PI * 0.5f;
+        float angle_end = angle_start + (2.0f * IM_PI) * std::clamp(progress, 0.0f, 1.0f);
+
+        ImDrawList* draw_list = ImGui::GetWindowDrawList();
+        draw_list->PathClear();
+        for (int i = 0; i <= num_segments; ++i) {
+            float a = angle_start + ((float)i / (float)num_segments) * (angle_end - angle_start);
+            draw_list->PathLineTo(ImVec2(center.x + cosf(a) * radius, center.y + sinf(a) * radius));
+        }
+        draw_list->PathStroke(color, false, thickness);
+
+        ImVec2 text_size = ImGui::CalcTextSize(label);
+        draw_list->AddText(ImVec2(center.x - text_size.x * 0.5f, center.y + radius + 12.0f), IM_COL32(180, 185, 200, 255), label);
+    }
+
+} // namespace UI

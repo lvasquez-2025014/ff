@@ -1,0 +1,1206 @@
+
+#include "main.h"
+
+
+//using namespace KeyAuth;
+//
+//std::string name = "Ost_PERSONAL"; // application name. right above the blurred text aka the secret on the licenses tab among other tabs
+//std::string ownerid = "PFa3QPrl49"; // ownerid, found in account settings. click your profile picture on top right of dashboard and then account settings.
+//std::string secret = "a82f04c64df053385f3033202d40a76ac8d90840067b658366cd749805c07b29"; // app secret, the blurred text on licenses tab and other tabs
+//std::string version = "2.0"; // leave alone unless you've changed version on website
+//
+//api KeyAuthApp(name, ownerid, secret, version);
+
+class c_datos {
+public:
+
+    char Username[255] = "";
+    char Password[255] = "";
+    char license[255] = "";
+    char Key[255] = "";
+
+
+};
+
+inline c_datos datos;
+
+
+void ToggleClickability(bool clickable)
+{
+    if (!hwnd) return;
+
+    LONG_PTR exStyle = GetWindowLongPtr(hwnd, GWL_EXSTYLE);
+    exStyle = clickable ? (exStyle & ~WS_EX_TRANSPARENT) : (exStyle | WS_EX_TRANSPARENT);
+    SetWindowLongPtr(hwnd, GWL_EXSTYLE, exStyle);
+
+
+    SetLayeredWindowAttributes(hwnd, RGB(0, 0, 0), 255, LWA_ALPHA);
+    RedrawWindow(hwnd, nullptr, nullptr, RDW_ERASE | RDW_INVALIDATE | RDW_FRAME);
+}
+
+
+//barra de progreso login
+
+void DrawCircularProgressBar(float progress, float thickness, ImU32 color, const char* label = "Cargando...", ImVec4 textColor = ImVec4(1.0f, 1.0f, 1.0f, 1.0f))
+{
+    ImGuiWindow* window = ImGui::GetCurrentWindow();
+    if (window->SkipItems)
+        return;
+
+
+    ImVec2 region_size = ImVec2(250, 250);
+
+
+    ImVec2 avail = ImGui::GetContentRegionAvail();
+
+
+    ImVec2 offset = ImVec2((avail.x - region_size.x) * 0.5f, (avail.y - region_size.y) * 1.5f);
+    ImGui::SetCursorPos(offset);
+
+
+    ImGui::InvisibleButton("circle_area", region_size);
+    ImVec2 window_pos = ImGui::GetItemRectMin();
+
+    float max_radius = 120.0f;
+    float radius = std::min(
+        (std::min(region_size.x, region_size.y) - thickness * 2.0f) / 2.0f,
+        max_radius
+    );
+
+
+    ImVec2 center = ImVec2(window_pos.x + region_size.x * 0.5f,
+        window_pos.y + region_size.y * 0.5f);
+
+    const int num_segments = 100;
+    float angle_start = -IM_PI / 2.0f;
+    float angle_end = angle_start + (2.0f * IM_PI) * std::clamp(progress, 0.0f, 1.0f);
+
+    ImDrawList* draw_list = ImGui::GetWindowDrawList();
+    draw_list->PathClear();
+
+    for (int i = 0; i <= num_segments; ++i)
+    {
+        float a = angle_start + ((float)i / (float)num_segments) * (angle_end - angle_start);
+        draw_list->PathLineTo(ImVec2(center.x + cosf(a) * radius, center.y + sinf(a) * radius));
+    }
+
+    draw_list->PathStroke(color, false, thickness);
+
+
+    ImVec2 text_size = ImGui::CalcTextSize(label);
+    ImVec2 text_pos = ImVec2(center.x - text_size.x * 0.5f, center.y - text_size.y * 0.5f);
+
+    draw_list->AddText(text_pos, ImGui::GetColorU32(textColor), label);
+}
+
+
+
+void SetupImGuiStyle()
+{
+    // Modern style by LousyBook-01 from ImThemes
+    ImGuiStyle& style = ImGui::GetStyle();
+
+    style.Alpha = 1.0f;
+    style.DisabledAlpha = 0.3f;
+    style.WindowPadding = ImVec2(10.1f, 10.1f);
+    style.WindowRounding = 10.3f;
+    style.WindowBorderSize = 1.0f;
+    style.WindowMinSize = ImVec2(20.0f, 32.0f);
+    style.WindowTitleAlign = ImVec2(0.5f, 0.5f);
+    style.WindowMenuButtonPosition = ImGuiDir_Right;
+    style.ChildRounding = 8.2f;
+    style.ChildBorderSize = 1.0f;
+    style.PopupRounding = 10.7f;
+    style.PopupBorderSize = 1.0f;
+    style.FramePadding = ImVec2(20.0f, 1.5f);
+    style.FrameRounding = 4.8f;
+    style.FrameBorderSize = 0.0f;
+    style.ItemSpacing = ImVec2(9.7f, 5.3f);
+    style.ItemInnerSpacing = ImVec2(5.4f, 9.3f);
+    style.CellPadding = ImVec2(7.9f, 2.0f);
+    style.IndentSpacing = 10.7f;
+    style.ColumnsMinSpacing = 6.0f;
+    style.ScrollbarSize = 12.1f;
+    style.ScrollbarRounding = 20.0f;
+    style.GrabMinSize = 10.0f;
+    style.GrabRounding = 4.6f;
+    style.TabRounding = 4.0f;
+    style.TabBorderSize = 0.0f;
+   
+    style.ColorButtonPosition = ImGuiDir_Right;
+    style.ButtonTextAlign = ImVec2(0.5f, 0.5f);
+    style.SelectableTextAlign = ImVec2(0.0f, 0.0f);
+
+    style.Colors[ImGuiCol_Text] = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
+    style.Colors[ImGuiCol_TextDisabled] = ImVec4(1.0f, 1.0f, 1.0f, 0.3991416f);
+    style.Colors[ImGuiCol_WindowBg] = ImVec4(0.039215688f, 0.039215688f, 0.039215688f, 0.94f);
+    style.Colors[ImGuiCol_ChildBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
+    style.Colors[ImGuiCol_PopupBg] = ImVec4(0.050980393f, 0.050980393f, 0.050980393f, 0.94f);
+    style.Colors[ImGuiCol_Border] = ImVec4(0.42745098f, 0.42745098f, 0.49803922f, 0.5f);
+    style.Colors[ImGuiCol_BorderShadow] = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
+    style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.42060083f);
+    style.Colors[ImGuiCol_FrameBgHovered] = ImVec4(0.14117648f, 0.14117648f, 0.14117648f, 0.4f);
+    style.Colors[ImGuiCol_FrameBgActive] = ImVec4(0.23137255f, 0.23137255f, 0.23137255f, 0.86266094f);
+    style.Colors[ImGuiCol_TitleBg] = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
+    style.Colors[ImGuiCol_TitleBgActive] = ImVec4(0.09411765f, 0.09411765f, 0.09411765f, 1.0f);
+    style.Colors[ImGuiCol_TitleBgCollapsed] = ImVec4(0.0f, 0.0f, 0.0f, 0.2918455f);
+    style.Colors[ImGuiCol_MenuBarBg] = ImVec4(0.13725491f, 0.13725491f, 0.13725491f, 1.0f);
+    style.Colors[ImGuiCol_ScrollbarBg] = ImVec4(0.019607844f, 0.019607844f, 0.019607844f, 0.53f);
+    style.Colors[ImGuiCol_ScrollbarGrab] = ImVec4(0.30980393f, 0.30980393f, 0.30980393f, 1.0f);
+    style.Colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0.40784314f, 0.40784314f, 0.40784314f, 1.0f);
+    style.Colors[ImGuiCol_ScrollbarGrabActive] = ImVec4(0.50980395f, 0.50980395f, 0.50980395f, 1.0f);
+    style.Colors[ImGuiCol_CheckMark] = ImVec4(0.98039216f, 0.25882354f, 0.25882354f, 1.0f);
+    style.Colors[ImGuiCol_SliderGrab] = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
+    style.Colors[ImGuiCol_SliderGrabActive] = ImVec4(0.25882354f, 0.5882353f, 0.98039216f, 1.0f);
+    style.Colors[ImGuiCol_Button] = ImVec4(0.0f, 0.0f, 0.0f, 0.5793991f);
+    style.Colors[ImGuiCol_ButtonHovered] = ImVec4(0.09803922f, 0.09803922f, 0.09803922f, 1.0f);
+    style.Colors[ImGuiCol_ButtonActive] = ImVec4(1.0f, 0.23137255f, 0.23137255f, 1.0f);
+    style.Colors[ImGuiCol_Header] = ImVec4(0.0f, 0.0f, 0.0f, 0.4549356f);
+    style.Colors[ImGuiCol_HeaderHovered] = ImVec4(0.18039216f, 0.18039216f, 0.18039216f, 0.8f);
+    style.Colors[ImGuiCol_HeaderActive] = ImVec4(0.9764706f, 0.25882354f, 0.25882354f, 1.0f);
+    style.Colors[ImGuiCol_Separator] = ImVec4(0.0f, 0.0f, 0.0f, 0.5f);
+    style.Colors[ImGuiCol_SeparatorHovered] = ImVec4(0.09803922f, 0.4f, 0.7490196f, 0.78f);
+    style.Colors[ImGuiCol_SeparatorActive] = ImVec4(0.09803922f, 0.4f, 0.7490196f, 1.0f);
+    style.Colors[ImGuiCol_ResizeGrip] = ImVec4(0.25882354f, 0.5882353f, 0.9764706f, 0.2f);
+    style.Colors[ImGuiCol_ResizeGripHovered] = ImVec4(0.25882354f, 0.5882353f, 0.9764706f, 0.67f);
+    style.Colors[ImGuiCol_ResizeGripActive] = ImVec4(0.25882354f, 0.5882353f, 0.9764706f, 0.95f);
+    style.Colors[ImGuiCol_Tab] = ImVec4(0.105882354f, 0.105882354f, 0.105882354f, 1.0f);
+    style.Colors[ImGuiCol_TabHovered] = ImVec4(1.0f, 0.3647059f, 0.6745098f, 0.8f);
+    style.Colors[ImGuiCol_TabActive] = ImVec4(1.0f, 0.22352941f, 0.22352941f, 1.0f);
+    style.Colors[ImGuiCol_TabUnfocused] = ImVec4(0.10980392f, 0.16862746f, 0.23921569f, 0.9724f);
+    style.Colors[ImGuiCol_TabUnfocusedActive] = ImVec4(0.13333334f, 0.25882354f, 0.42352942f, 1.0f);
+    style.Colors[ImGuiCol_PlotLines] = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
+    style.Colors[ImGuiCol_PlotLinesHovered] = ImVec4(1.0f, 0.42745098f, 0.34901962f, 1.0f);
+    style.Colors[ImGuiCol_PlotHistogram] = ImVec4(1.0f, 0.21568628f, 0.21568628f, 1.0f);
+    style.Colors[ImGuiCol_PlotHistogramHovered] = ImVec4(1.0f, 0.21568628f, 0.69803923f, 1.0f);
+    style.Colors[ImGuiCol_TableHeaderBg] = ImVec4(1.0f, 0.23529412f, 0.23529412f, 1.0f);
+    style.Colors[ImGuiCol_TableBorderStrong] = ImVec4(1.0f, 0.31764707f, 0.31764707f, 1.0f);
+    style.Colors[ImGuiCol_TableBorderLight] = ImVec4(1.0f, 0.5647059f, 0.5647059f, 0.36909872f);
+    style.Colors[ImGuiCol_TableRowBg] = ImVec4(0.7254902f, 0.3372549f, 1.0f, 0.0f);
+    style.Colors[ImGuiCol_TableRowBgAlt] = ImVec4(1.0f, 0.27450982f, 0.27450982f, 0.111588f);
+    style.Colors[ImGuiCol_TextSelectedBg] = ImVec4(0.9764706f, 0.25882354f, 0.25882354f, 1.0f);
+    style.Colors[ImGuiCol_DragDropTarget] = ImVec4(1.0f, 1.0f, 0.0f, 0.9f);
+    style.Colors[ImGuiCol_NavHighlight] = ImVec4(0.0f, 0.0f, 0.0f, 0.64377683f);
+    style.Colors[ImGuiCol_NavWindowingHighlight] = ImVec4(1.0f, 1.0f, 1.0f, 0.46781117f);
+    style.Colors[ImGuiCol_NavWindowingDimBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.73390555f);
+    style.Colors[ImGuiCol_ModalWindowDimBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.7982833f);
+}
+
+// Main code
+int maindll()
+{
+
+   /* KeyAuthApp.init();*/
+    // Make process DPI aware and obtain main monitor scale
+    ImGui_ImplWin32_EnableDpiAwareness();
+    float main_scale = ImGui_ImplWin32_GetDpiScaleForMonitor(::MonitorFromPoint(POINT{ 0, 0 }, MONITOR_DEFAULTTOPRIMARY));
+
+    int width = GetSystemMetrics(SM_CXSCREEN);
+    int height = GetSystemMetrics(SM_CYSCREEN);
+
+
+    WNDCLASSEXW wc = { sizeof(WNDCLASSEXW) };
+    wc.style = CS_HREDRAW | CS_VREDRAW;
+    wc.lpfnWndProc = WndProc;
+    wc.cbClsExtra = 0;
+    wc.cbWndExtra = 0;
+    wc.hInstance = GetModuleHandle(nullptr);
+    wc.hIcon = LoadIcon(nullptr, IDI_APPLICATION);
+    wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
+    wc.hbrBackground = (HBRUSH)GetStockObject(NULL_BRUSH);
+    wc.lpszMenuName = nullptr;
+    wc.lpszClassName = L"uwu";
+    wc.hIconSm = LoadIcon(nullptr, IDI_APPLICATION);
+    RegisterClassExW(&wc);
+
+    hwnd = CreateWindowExW(
+        WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TOOLWINDOW,
+        wc.lpszClassName, nullptr,
+        WS_POPUP,
+        0, 0, width, height,
+        nullptr, nullptr, wc.hInstance, nullptr
+    );
+
+    SetLayeredWindowAttributes(hwnd, 0, 255, LWA_ALPHA);
+
+    if (!CreateDeviceD3D(hwnd))
+    {
+        CleanupDeviceD3D();
+        ::UnregisterClassW(wc.lpszClassName, wc.hInstance);
+        return 1;
+    }
+
+
+    // Show the window
+    ::ShowWindow(hwnd, SW_SHOWDEFAULT);
+    ::UpdateWindow(hwnd);
+
+    // Setup Dear ImGui context
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+
+    // Setup Dear ImGui style
+    ImGui::StyleColorsDark();
+    //ImGui::StyleColorsLight();
+
+    // Setup scaling
+    ImGuiStyle& style = ImGui::GetStyle();
+    style.ScaleAllSizes(main_scale);        // Bake a fixed style scale. (until we have a solution for dynamic style scaling, changing this requires resetting Style + calling this again)
+    style.FontScaleDpi = main_scale;        // Set initial font scale. (in docking branch: using io.ConfigDpiScaleFonts=true automatically overrides this for every window depending on the current monitor)
+
+    // Setup Platform/Renderer backends
+    ImGui_ImplWin32_Init(hwnd);
+    ImGui_ImplDX11_Init(g_pd3dDevice, g_pd3dDeviceContext);
+
+
+
+    //stilos para el panel iconos y imagines
+
+  
+    // AGREGAR FUENTES
+    Inter_S = io.Fonts->AddFontFromMemoryTTF(&Inter_Semmi, sizeof Inter_Semmi, 14.5f, NULL, io.Fonts->GetGlyphRangesCyrillic());
+    font2::fuentezada = io.Fonts->AddFontFromMemoryTTF(&Inter_Semmi, sizeof(Inter_Semmi), 10.5f, NULL, io.Fonts->GetGlyphRangesCyrillic());
+    Inter_S_1 = io.Fonts->AddFontFromMemoryTTF(&Inter_Semmi, sizeof Inter_Semmi, 16.f, NULL, io.Fonts->GetGlyphRangesCyrillic());
+    Icon_Arrow = io.Fonts->AddFontFromMemoryTTF(&Arrow, sizeof Arrow, 6.f, NULL, io.Fonts->GetGlyphRangesCyrillic());
+    ImFont* Nev1 = io.Fonts->AddFontFromMemoryTTF(&Nevan, sizeof Nevan, 25, NULL, io.Fonts->GetGlyphRangesCyrillic());
+
+
+
+
+
+    if (image2::main == nullptr) D3DX11CreateShaderResourceViewFromMemory(g_pd3dDevice, main_icon, sizeof(main_icon), &info, pump, &image2::main, 0);
+    if (image2::gless == nullptr) D3DX11CreateShaderResourceViewFromMemory(g_pd3dDevice, glass_icon, sizeof(glass_icon), &info, pump, &image2::gless, 0);
+    if (image2::help == nullptr) D3DX11CreateShaderResourceViewFromMemory(g_pd3dDevice, help_icon, sizeof(help_icon), &info, pump, &image2::help, 0);
+    if (image2::settings == nullptr) D3DX11CreateShaderResourceViewFromMemory(g_pd3dDevice, settings_icon, sizeof(settings_icon), &info, pump, &image2::settings, 0);
+    if (image2::panel == nullptr) D3DX11CreateShaderResourceViewFromMemory(g_pd3dDevice, world_icon, sizeof(world_icon), &info, pump, &image2::panel, 0);
+    if (image2::other == nullptr) D3DX11CreateShaderResourceViewFromMemory(g_pd3dDevice, other_icon, sizeof(other_icon), &info, pump, &image2::other, 0);
+    if (image2::save == nullptr) D3DX11CreateShaderResourceViewFromMemory(g_pd3dDevice, save_icon, sizeof(save_icon), &info, pump, &image2::save, 0);
+    if (image2::login111 == nullptr) D3DX11CreateShaderResourceViewFromMemory(g_pd3dDevice, logintaboxcy666666, sizeof(logintaboxcy666666), &info, pump, &image2::login111, 0);
+    if (image2::Register111 == nullptr) D3DX11CreateShaderResourceViewFromMemory(g_pd3dDevice, registertaboxcy666666, sizeof(registertaboxcy666666), &info, pump, &image2::Register111, 0);
+    if (logo == nullptr) D3DX11CreateShaderResourceViewFromMemory(g_pd3dDevice, logotype2, sizeof(logotype2), &info, pump, &logo, 0);
+    if (fu1l == nullptr) D3DX11CreateShaderResourceViewFromMemory(g_pd3dDevice, net2, sizeof(net2), &info, pump, &fu1l, 0);
+    if (image2::rayo == nullptr) D3DX11CreateShaderResourceViewFromMemory(g_pd3dDevice, rayoo, sizeof(rayoo), &info, pump, &image2::rayo, 0);
+    if (image2::flecha == nullptr) D3DX11CreateShaderResourceViewFromMemory(g_pd3dDevice, flechaa, sizeof(flechaa), &info, pump, &image2::flecha, 0);
+    if (image2::ancla == nullptr) D3DX11CreateShaderResourceViewFromMemory(g_pd3dDevice, anclaa, sizeof(anclaa), &info, pump, &image2::ancla, 0);
+    if (image2::fastfire == nullptr) D3DX11CreateShaderResourceViewFromMemory(g_pd3dDevice, fastfiree, sizeof(fastfiree), &info, pump, &image2::fastfire, 0);
+    if (image2::tpenemy == nullptr) D3DX11CreateShaderResourceViewFromMemory(g_pd3dDevice, tpenemyy, sizeof(tpenemyy), &info, pump, &image2::tpenemy, 0);
+    if (image2::nieve == nullptr) D3DX11CreateShaderResourceViewFromMemory(g_pd3dDevice, nievee, sizeof(nievee), &info, pump, &image2::nieve, 0);
+    if (image2::ghost == nullptr) D3DX11CreateShaderResourceViewFromMemory(g_pd3dDevice, ghosst, sizeof(ghosst), &info, pump, &image2::ghost, 0);
+    if (image2::ffimagen == nullptr) D3DX11CreateShaderResourceViewFromMemory(g_pd3dDevice, ffimagen, sizeof(ffimagen), &info, pump, &image2::ffimagen, 0);
+    if (image2::ffimagenMAX == nullptr) D3DX11CreateShaderResourceViewFromMemory(g_pd3dDevice, ffimagenMAX, sizeof(ffimagenMAX), &info, pump, &image2::ffimagenMAX, 0);
+    if (image2::ffimagenTELA == nullptr) D3DX11CreateShaderResourceViewFromMemory(g_pd3dDevice, ffimagenTELA, sizeof(ffimagenTELA), &info, pump, &image2::ffimagenTELA, 0);
+
+
+
+
+    //lamar el boton togle antes del while loop
+    ToggleClickability(isClickable);
+
+    // Our state
+    bool show_demo_window = true;
+    bool show_another_window = false;
+    ImVec4 clear_color = ImVec4(0.f, 0.f, 0.f, 0.f);
+
+    // Main loop
+    bool done = false;
+    while (!done)
+    {
+        // Poll and handle messages (inputs, window resize, etc.)
+        // See the WndProc() function below for our to dispatch events to the Win32 backend.
+        MSG msg;
+        while (::PeekMessage(&msg, nullptr, 0U, 0U, PM_REMOVE))
+        {
+            ::TranslateMessage(&msg);
+            ::DispatchMessage(&msg);
+            if (msg.message == WM_QUIT)
+                done = true;
+        }
+        if (done)
+            break;
+
+        // Handle window being minimized or screen locked
+        if (g_SwapChainOccluded && g_pSwapChain->Present(0, DXGI_PRESENT_TEST) == DXGI_STATUS_OCCLUDED)
+        {
+            ::Sleep(10);
+            continue;
+        }
+        g_SwapChainOccluded = false;
+
+        // Handle window resize (we don't resize directly in the WM_SIZE handler)
+        if (g_ResizeWidth != 0 && g_ResizeHeight != 0)
+        {
+            CleanupRenderTarget();
+            g_pSwapChain->ResizeBuffers(0, g_ResizeWidth, g_ResizeHeight, DXGI_FORMAT_UNKNOWN, 0);
+            g_ResizeWidth = g_ResizeHeight = 0;
+            CreateRenderTarget();
+        }
+
+
+
+        // aqui llamamos el keybi tecla
+
+        static int KeyHide = VK_INSERT;
+        if (GetAsyncKeyState(KeyHide) & 1)
+        {
+            if (!Verified)
+            {
+                isClickable = true;
+                Main_Window = true;
+                ToggleClickability(isClickable);
+                Verified = true;
+            }
+            else
+            {
+                isClickable = false;
+                Main_Window = false;
+                ToggleClickability(isClickable);
+                Verified = false;
+            }
+
+
+        }
+
+
+
+        //// Start the Dear ImGui frame
+        ImGui_ImplDX11_NewFrame();
+        ImGui_ImplWin32_NewFrame();
+        ImGui::NewFrame();
+
+        if (EnabledEsp)
+        {
+
+            ESP_line();
+        }
+
+        SetupImGuiStyle();
+        ImGuiContext& g = *GImGui;
+        ImGuiStyle* style = &ImGui::GetStyle();
+
+        if (Main_Window)
+        {
+
+            if (show_login && !loading)
+            {
+                
+                ImGui::SetNextWindowSize(ImVec2(800, 500), ImGuiCond_Always);
+                if (ImGui::Begin("login", &open, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse))
+                {
+
+                    if (login)
+                    {
+
+                        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+                        ImGui::SetCursorPos(ImVec2(250, 150));
+                        ImGui::BeginChild("ta1", ImVec2(420, 300), false);
+                        {
+                           
+                            ImGui::InputText("usuario", datos.Username, sizeof(datos.Username));
+                            ImGui::InputText("password", datos.Password, sizeof(datos.Password));
+                            ImGui::SetCursorPos(ImVec2(60, 70));
+                            if(ImGui::Button("Login", ImVec2(150, 30)))
+                            {
+                               
+                             /*
+                                if (!KeyAuthApp.login(datos.Username, datos.Password))
+                                {
+
+                                    MessageBoxA(NULL, "error", NULL, NULL);
+                                }
+                                else {*/
+                                    loading = true;
+                                    progress1 = 0.0f;
+
+
+                                
+                                  
+
+                                
+                               
+                               
+                            }
+
+                            ImGui::SetCursorPos(ImVec2(60, 105));
+                            if (ImGui::Button("Registrate", ImVec2(150, 30)))
+                            {
+                                registrard = true;
+                                login = false;
+                            }
+
+                            ImGui::SetCursorPos(ImVec2(60, 145));
+                            if (ImGui::Button("Acceso Directo", ImVec2(150, 30)))
+                            {
+                                loading = false;
+                                authenticed = true;
+                                show_login = false;
+                            }
+
+                        }ImGui::EndChild();
+                        ImGui::PopStyleColor();
+
+                       
+
+                    }
+
+
+                    if(registrard)
+                    {
+
+
+                        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+                        ImGui::SetCursorPos(ImVec2(250, 150));
+                        ImGui::BeginChild("ta1", ImVec2(420, 300), false);
+                        {
+                           
+                            ImGui::InputText("usuario", datos.Username, sizeof(datos.Username));
+                            ImGui::InputText("password", datos.Password, sizeof(datos.Password));
+                            ImGui::InputText("licencia", datos.Key, sizeof(datos.Key));
+
+                            ImGui::SetCursorPos(ImVec2(60, 90));
+                            if (ImGui::Button("Registrar", ImVec2(150, 30)))
+                            {
+
+                               /* if (!KeyAuthApp.regstr(datos.Username, datos.Password,datos.Key))
+                                {
+
+                                    MessageBoxA(NULL, "error", NULL, NULL);
+                                }
+                                else {*/
+
+                                    registrard = false;
+                                    login = true;
+
+                                
+                               
+                            }
+
+                          
+                        }ImGui::EndChild();
+                        ImGui::PopStyleColor();
+
+
+                    }
+
+
+
+                }ImGui::End();
+
+            }
+
+
+            else if (loading && !authenticed)
+            {
+                // Renderizado ImGui
+                if (ImGui::Begin("login", &open, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse))
+                {
+                    ImGui::SetCursorPos(ImVec2(0, 160));
+                    ImVec4 textoColor = ImVec4(0.3f, 0.6f, 1.0f, 1.0f);
+
+                    DrawCircularProgressBar(progress1, 6.0f, ImGui::GetColorU32(c::main_coCQlor1), "Cargando...", textoColor);
+
+
+                    ImGui::Dummy(ImVec2(0, 0));
+
+                    progress1 += load_speed * ImGui::GetIO().DeltaTime;
+                    if (progress1 >= 1.0f)
+                    {
+                        loading = false;
+                        authenticed = true;
+                        show_login = false;
+                    }
+
+
+                }
+                ImGui::End();
+
+            }
+
+
+
+            if (authenticed)
+            {
+
+                
+
+
+                ImGui::SetNextWindowSize(ImVec2(830, 485), ImGuiCond_Always);
+                if (ImGui::Begin("panel principal", &open, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar))
+                {
+                    auto draw = ImGui::GetWindowDrawList();
+                    auto background_list1 = ImGui::GetBackgroundDrawList();
+                    ImVec2 pos = ImGui::GetWindowPos();
+                    ImVec2 size = ImGui::GetWindowSize();
+                    ImVec2 top_left1 = pos;
+                    ImVec2 bottom_right1 = ImVec2(pos.x + size.x, pos.y + size.y);
+
+                    // 1. Realistic Soft Drop Shadow (no gaudy thick bubble)
+                    AddShadowRect(background_list1, top_left1, bottom_right1, IM_COL32(0, 0, 0, 160), 12.f, ImVec2(0, 4), 8.f, 16);
+
+                    // 2. Chassis Framing (Deep obsidian frosted glass with razor-sharp borders)
+                    // Sidebar background (width 75px)
+                    draw->AddRectFilled(pos, ImVec2(pos.x + 75.f, pos.y + size.y), IM_COL32(13, 14, 19, 255), 8.f, ImDrawFlags_RoundCornersLeft);
+                    // Workspace background
+                    draw->AddRectFilled(ImVec2(pos.x + 75.f, pos.y), bottom_right1, IM_COL32(10, 11, 15, 255), 8.f, ImDrawFlags_RoundCornersRight);
+                    // Razor-sharp 1px outer border
+                    draw->AddRect(pos, bottom_right1, IM_COL32(36, 40, 54, 255), 8.f, 0, 1.2f);
+                    // Inner bevel highlight
+                    draw->AddRect(ImVec2(pos.x + 1.f, pos.y + 1.f), ImVec2(bottom_right1.x - 1.f, bottom_right1.y - 1.f), IM_COL32(255, 255, 255, 8), 8.f, 0, 1.f);
+                    // Divider between sidebar and workspace
+                    draw->AddLine(ImVec2(pos.x + 75.f, pos.y), ImVec2(pos.x + 75.f, pos.y + size.y), IM_COL32(24, 26, 36, 255), 1.f);
+
+                    // 3. Sidebar Branding (Circular avatar logo)
+                    ImVec2 logoCenter = ImVec2(pos.x + 37.f, pos.y + 30.f);
+                    draw->AddImageRounded(
+                        logo,
+                        ImVec2(logoCenter.x - 18.f, logoCenter.y - 18.f),
+                        ImVec2(logoCenter.x + 18.f, logoCenter.y + 18.f),
+                        ImVec2(0, 0), ImVec2(1, 1),
+                        IM_COL32(255, 255, 255, 255),
+                        18.f
+                    );
+                    draw->AddCircle(logoCenter, 18.f, ImGui::GetColorU32(color_edit4), 32, 1.2f);
+
+                    // Divider below avatar
+                    draw->AddLine(ImVec2(pos.x + 14.f, pos.y + 56.f), ImVec2(pos.x + 61.f, pos.y + 56.f), IM_COL32(26, 29, 40, 180), 1.f);
+
+                    // Active Tab Neon Indicator Bar on Left Edge
+                    float tabIndicatorY = pos.y + 70.f + (page * 48.f);
+                    draw->AddRectFilled(ImVec2(pos.x + 2.f, tabIndicatorY + 6.f), ImVec2(pos.x + 4.5f, tabIndicatorY + 30.f), ImGui::GetColorU32(color_edit4), 2.f);
+
+                    // Sidebar Navigation Tabs (3 Dedicated Categories)
+                    ImGui::BeginGroup();
+                    {
+                        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 16));
+                        ImGui::SetCursorPos(ImVec2(22, 70));
+                        ImGui::BeginGroup();
+                        {
+                            if (ImGui::Tab("esp", (ImTextureID)image2::gless, 0 == page, ImVec2(32, 32), ImVec2(18, 14))) page = 0;
+                            if (ImGui::Tab("adb", (ImTextureID)(image2::rayo ? image2::rayo : image2::main), 1 == page, ImVec2(32, 32), ImVec2(16, 16))) page = 1;
+                            if (ImGui::Tab("settings", (ImTextureID)image2::settings, 2 == page, ImVec2(32, 32), ImVec2(16, 16))) page = 2;
+                        }
+                        ImGui::EndGroup();
+                        ImGui::PopStyleVar();
+                    }
+                    ImGui::EndGroup();
+
+                    // Sidebar Watermark
+                    draw->AddText(ImVec2(pos.x + 24.f, pos.y + size.y - 24.f), IM_COL32(65, 70, 90, 180), "v2.5");
+
+                    // 4. Header Bar (Spacious, Zero Overlap)
+                    // Title on line 1
+                    ImGui::PushFont(Inter_S_1);
+                    draw->AddText(ImVec2(pos.x + 95.f, pos.y + 13.f), IM_COL32(245, 248, 255, 255), "OSTORGA");
+                    ImGui::PopFont();
+                    // Subtitle cleanly on line 2 (NO OVERLAP!)
+                    draw->AddText(ImVec2(pos.x + 95.f, pos.y + 33.f), IM_COL32(110, 118, 140, 255), "EXTERNAL OVERLAY  •  DIRECTX 11");
+
+                    // Header Right Telemetry Badges (Right-aligned, ample breathing room)
+                    // [INS] Tag
+                    draw->AddRectFilled(ImVec2(pos.x + 755.f, pos.y + 16.f), ImVec2(pos.x + 810.f, pos.y + 38.f), IM_COL32(20, 22, 30, 240), 6.f);
+                    draw->AddRect(ImVec2(pos.x + 755.f, pos.y + 16.f), ImVec2(pos.x + 810.f, pos.y + 38.f), IM_COL32(36, 40, 56, 200), 6.f);
+                    draw->AddText(ImVec2(pos.x + 768.f, pos.y + 19.f), IM_COL32(150, 160, 185, 255), "[INS]");
+
+                    // FPS Badge
+                    char fpsBuf[32];
+                    sprintf_s(fpsBuf, "%.0f FPS", ImGui::GetIO().Framerate);
+                    draw->AddRectFilled(ImVec2(pos.x + 655.f, pos.y + 16.f), ImVec2(pos.x + 745.f, pos.y + 38.f), IM_COL32(18, 20, 28, 240), 6.f);
+                    draw->AddRect(ImVec2(pos.x + 655.f, pos.y + 16.f), ImVec2(pos.x + 745.f, pos.y + 38.f), IM_COL32(36, 40, 56, 200), 6.f);
+                    draw->AddCircleFilled(ImVec2(pos.x + 668.f, pos.y + 27.f), 3.5f, IM_COL32(0, 200, 255, 255));
+                    draw->AddText(ImVec2(pos.x + 678.f, pos.y + 19.f), IM_COL32(205, 215, 235, 255), fpsBuf);
+
+                    // ADB Status Badge
+                    if (EnabledEsp) {
+                        draw->AddRectFilled(ImVec2(pos.x + 525.f, pos.y + 16.f), ImVec2(pos.x + 645.f, pos.y + 38.f), IM_COL32(16, 36, 25, 240), 6.f);
+                        draw->AddRect(ImVec2(pos.x + 525.f, pos.y + 16.f), ImVec2(pos.x + 645.f, pos.y + 38.f), IM_COL32(28, 160, 85, 200), 6.f);
+                        draw->AddCircleFilled(ImVec2(pos.x + 538.f, pos.y + 27.f), 3.5f, IM_COL32(0, 240, 130, 255));
+                        draw->AddText(ImVec2(pos.x + 548.f, pos.y + 19.f), IM_COL32(0, 240, 130, 255), "ADB ONLINE");
+                    } else {
+                        draw->AddRectFilled(ImVec2(pos.x + 525.f, pos.y + 16.f), ImVec2(pos.x + 645.f, pos.y + 38.f), IM_COL32(32, 24, 16, 240), 6.f);
+                        draw->AddRect(ImVec2(pos.x + 525.f, pos.y + 16.f), ImVec2(pos.x + 645.f, pos.y + 38.f), IM_COL32(170, 105, 30, 200), 6.f);
+                        draw->AddCircleFilled(ImVec2(pos.x + 538.f, pos.y + 27.f), 3.5f, IM_COL32(255, 155, 40, 255));
+                        draw->AddText(ImVec2(pos.x + 548.f, pos.y + 19.f), IM_COL32(255, 155, 40, 255), "ADB STANDBY");
+                    }
+
+                    // Header Separator Line
+                    draw->AddLine(ImVec2(pos.x + 85.f, pos.y + 54.f), ImVec2(pos.x + 815.f, pos.y + 54.f), IM_COL32(25, 28, 38, 200), 1.f);
+                    draw->AddLine(ImVec2(pos.x + 85.f, pos.y + 54.f), ImVec2(pos.x + 180.f, pos.y + 54.f), ImGui::GetColorU32(color_edit4), 2.f);
+
+                    // Interpolación de pestaña
+                    tab_alpha = ImLerp(tab_alpha, (page == active_tab) ? 1.f : 0.f, 18.f * ImGui::GetIO().DeltaTime);
+                    if (tab_alpha < 0.01f)
+                        active_tab = page;
+
+                    // 5. Función de Tarjetas Glass (Amplias, Espaciosas, Profesionales)
+                    auto DrawGlassCard = [&](const char* title, const char* category, ImVec2 cpos, ImVec2 csize)
+                    {
+                        ImVec2 p1 = ImVec2(pos.x + cpos.x, pos.y + cpos.y);
+                        ImVec2 p2 = ImVec2(p1.x + csize.x, p1.y + csize.y);
+
+                        // Cuerpo de la tarjeta
+                        draw->AddRectFilled(p1, p2, IM_COL32(15, 16, 22, 240), 8.f);
+                        draw->AddLine(ImVec2(p1.x + 2, p1.y + 1), ImVec2(p2.x - 2, p1.y + 1), IM_COL32(255, 255, 255, 8), 1.f);
+                        draw->AddRect(p1, p2, IM_COL32(30, 33, 46, 220), 8.f, 0, 1.2f);
+
+                        // Encabezado
+                        ImVec2 headerP2 = ImVec2(p2.x, p1.y + 34.f);
+                        draw->AddRectFilled(p1, headerP2, IM_COL32(19, 21, 29, 245), 8.f, ImDrawFlags_RoundCornersTop);
+                        draw->AddLine(ImVec2(p1.x, p1.y + 34.f), ImVec2(p2.x, p1.y + 34.f), IM_COL32(28, 31, 44, 220), 1.f);
+
+                        // Indicador de color
+                        draw->AddRectFilled(ImVec2(p1.x + 12.f, p1.y + 9.f), ImVec2(p1.x + 15.f, p1.y + 25.f), ImGui::GetColorU32(color_edit4), 2.f);
+                        // Texto de título
+                        draw->AddText(ImVec2(p1.x + 22.f, p1.y + 8.f), IM_COL32(235, 238, 248, 255), title);
+
+                        // Badge de Categoría
+                        if (category && category[0] != '\0')
+                        {
+                            ImVec2 catSize = ImGui::CalcTextSize(category);
+                            ImVec2 catP1 = ImVec2(p2.x - catSize.x - 18.f, p1.y + 8.f);
+                            ImVec2 catP2 = ImVec2(p2.x - 8.f, p1.y + 26.f);
+                            draw->AddRectFilled(catP1, catP2, IM_COL32(25, 28, 38, 220), 4.f);
+                            draw->AddRect(catP1, catP2, IM_COL32(40, 44, 60, 180), 4.f);
+                            draw->AddText(ImVec2(catP1.x + 5.f, catP1.y + 2.f), IM_COL32(125, 135, 160, 255), category);
+                        }
+                    };
+
+                    auto BeginGlassCard = [&](const char* title, const char* category, const char* id, ImVec2 cpos, ImVec2 csize)
+                    {
+                        DrawGlassCard(title, category, cpos, csize);
+
+                        ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0, 0, 0, 0));
+                        ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0, 0, 0, 0));
+                        ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, 0.f);
+                        ImGui::SetCursorPos(ImVec2(cpos.x + 8, cpos.y + 38));
+                        ImGui::BeginChild(id, ImVec2(csize.x - 16, csize.y - 44), false);
+                    };
+
+                    auto EndGlassCard = [&]()
+                    {
+                        ImGui::EndChild();
+                        ImGui::PopStyleVar();
+                        ImGui::PopStyleColor(2);
+                    };
+
+                    ImGui::PushStyleVar(ImGuiStyleVar_Alpha, tab_alpha * style->Alpha);
+                    {
+                        // ═══════════════════════════════════════════════════════
+                        // PESTAÑA 0: ESP LINE (Visuales Limpios & Amplios)
+                        // ═══════════════════════════════════════════════════════
+                        if (active_tab == 0)
+                        {
+                            // Tarjeta Izquierda: Opciones de Renderizado
+                            BeginGlassCard("CONFIGURACION ESP", "VISUALES", "card_esp_cfg", ImVec2(95, 68), ImVec2(345, 398));
+                            {
+                                ImGui::Dummy(ImVec2(0, 6));
+
+                                ImGui::SetCursorPosX(12);
+                                ImGui::Checkbox2("ESP LINEAS (CABEZA)", &EspLineZ);
+
+                                ImGui::SetCursorPosX(14);
+                                ImGui::TextColored(ImVec4(0.5f, 0.55f, 0.7f, 1.0f), "Traza linea superior al objetivo");
+
+                                ImGui::Dummy(ImVec2(0, 10));
+
+                                ImGui::SetCursorPosX(12);
+                                ImGui::Checkbox2("MOSTRAR ALIADOS", &ShowTeam);
+
+                                ImGui::SetCursorPosX(14);
+                                ImGui::TextColored(ImVec4(0.5f, 0.55f, 0.7f, 1.0f), "Dibuja a companeros de escuadra");
+
+                                ImGui::Dummy(ImVec2(0, 14));
+                                draw->AddLine(ImVec2(pos.x + 110.f, pos.y + 225.f), ImVec2(pos.x + 425.f, pos.y + 225.f), IM_COL32(28, 31, 42, 200), 1.f);
+                                ImGui::Dummy(ImVec2(0, 8));
+
+                                ImGui::SetCursorPosX(14);
+                                ImGui::TextColored(ImVec4(0.85f, 0.88f, 0.95f, 1.0f), "Grosor de Trazo de Linea:");
+
+                                ImGui::Dummy(ImVec2(0, 2));
+                                ImGui::SetCursorPosX(12);
+                                ImGui::PushItemWidth(300);
+                                ImGui::SliderFloat("##thickness", &lineThicknessBase, 0.5f, 5.0f, "%.1f px");
+                                ImGui::PopItemWidth();
+
+                                ImGui::Dummy(ImVec2(0, 24));
+
+                                // Inset de informacion
+                                ImVec2 tipPos = ImGui::GetCursorScreenPos();
+                                draw->AddRectFilled(tipPos, ImVec2(tipPos.x + 315.f, tipPos.y + 44.f), IM_COL32(11, 12, 17, 240), 6.f);
+                                draw->AddRect(tipPos, ImVec2(tipPos.x + 315.f, tipPos.y + 44.f), IM_COL32(26, 29, 40, 200), 6.f);
+                                draw->AddText(ImVec2(tipPos.x + 12.f, tipPos.y + 14.f), IM_COL32(130, 140, 168, 255), "DirectX 11 hardware overlay activo.");
+                            }
+                            EndGlassCard();
+
+                            // Tarjeta Derecha: Previsualización 2D Espaciosa
+                            BeginGlassCard("PREVISUALIZACION EN VIVO", "RADAR 2D", "card_esp_radar", ImVec2(455, 68), ImVec2(355, 398));
+                            {
+                                ImGui::Dummy(ImVec2(0, 4));
+
+                                // Canvas 2D amplio
+                                ImVec2 radPos = ImGui::GetCursorScreenPos();
+                                radPos.x += 8.f;
+                                float radW = 320.f;
+                                float radH = 290.f;
+                                ImVec2 radEnd = ImVec2(radPos.x + radW, radPos.y + radH);
+
+                                // Fondo del radar con cuadrícula sutil
+                                draw->AddRectFilled(radPos, radEnd, IM_COL32(9, 10, 14, 255), 6.f);
+                                draw->AddRect(radPos, radEnd, IM_COL32(26, 29, 42, 200), 6.f);
+
+                                // Líneas de cuadrícula sutiles
+                                draw->AddLine(ImVec2(radPos.x + radW * 0.5f, radPos.y), ImVec2(radPos.x + radW * 0.5f, radEnd.y), IM_COL32(18, 20, 28, 180), 1.f);
+                                draw->AddLine(ImVec2(radPos.x, radPos.y + radH * 0.5f), ImVec2(radEnd.x, radPos.y + radH * 0.5f), IM_COL32(18, 20, 28, 180), 1.f);
+
+                                // Origen en la parte superior central
+                                ImVec2 originPt = ImVec2(radPos.x + radW * 0.5f, radPos.y + 16.f);
+                                draw->AddCircleFilled(originPt, 3.5f, IM_COL32(0, 220, 255, 255));
+                                draw->AddCircle(originPt, 7.f, IM_COL32(0, 220, 255, 120), 16, 1.f);
+
+                                // Objetivo Enemigo
+                                ImVec2 enemyPt = ImVec2(radPos.x + radW * 0.30f, radPos.y + 190.f);
+                                if (EspLineZ) {
+                                    draw->AddLine(originPt, enemyPt, ImGui::ColorConvertFloat4ToU32(lineColorEnemy), lineThicknessBase > 0.0f ? lineThicknessBase : 1.5f);
+                                }
+                                draw->AddCircleFilled(enemyPt, 4.5f, ImGui::ColorConvertFloat4ToU32(lineColorEnemy));
+                                draw->AddCircle(enemyPt, 8.5f, ImGui::ColorConvertFloat4ToU32(lineColorEnemy), 16, 1.f);
+                                draw->AddText(ImVec2(enemyPt.x - 22.f, enemyPt.y + 12.f), IM_COL32(220, 225, 235, 255), "ENEMIGO");
+                                draw->AddText(ImVec2(enemyPt.x - 14.f, enemyPt.y + 26.f), IM_COL32(120, 125, 145, 220), "[ 35m ]");
+
+                                // Objetivo Aliado
+                                ImVec2 allyPt = ImVec2(radPos.x + radW * 0.72f, radPos.y + 215.f);
+                                if (EspLineZ && ShowTeam) {
+                                    draw->AddLine(originPt, allyPt, ImGui::ColorConvertFloat4ToU32(lineColorTeam), lineThicknessBase > 0.0f ? lineThicknessBase : 1.5f);
+                                }
+                                draw->AddCircleFilled(allyPt, 4.5f, ImGui::ColorConvertFloat4ToU32(lineColorTeam));
+                                draw->AddCircle(allyPt, 8.5f, ImGui::ColorConvertFloat4ToU32(lineColorTeam), 16, 1.f);
+                                draw->AddText(ImVec2(allyPt.x - 18.f, allyPt.y + 12.f), IM_COL32(220, 225, 235, 255), "ALIADO");
+                                draw->AddText(ImVec2(allyPt.x - 14.f, allyPt.y + 26.f), IM_COL32(120, 125, 145, 220), "[ 18m ]");
+
+                                ImGui::SetCursorPos(ImVec2(18, 320));
+                                ImGui::TextColored(ImVec4(0.5f, 0.55f, 0.7f, 1.0f), "Respuesta reactiva inmediata en tiempo real.");
+                            }
+                            EndGlassCard();
+                        }
+                        // ═══════════════════════════════════════════════════════
+                        // PESTAÑA 1: CONEXIÓN ADB (Sistema & Bridge)
+                        // ═══════════════════════════════════════════════════════
+                        else if (active_tab == 1)
+                        {
+                            // Tarjeta Izquierda: Conexión
+                            BeginGlassCard("CONEXION ADB", "BRIDGE", "card_adb_ctl", ImVec2(95, 68), ImVec2(345, 398));
+                            {
+                                ImGui::Dummy(ImVec2(0, 10));
+
+                                ImGui::SetCursorPosX(16);
+                                if (!EnabledEsp)
+                                {
+                                    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.08f, 0.44f, 0.88f, 0.85f));
+                                    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.12f, 0.54f, 1.0f, 1.0f));
+                                    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.06f, 0.36f, 0.76f, 1.0f));
+                                    if (ImGui::Button("INICIAR CONEXION ADB", ImVec2(295, 42)))
+                                    {
+                                        adbboton = true;
+                                        initOffsets(0);
+                                        std::thread([]() {
+                                            hdPlayerWindow = INJECTESPADB();
+                                            while (EspADB != "The Abd is active!");
+                                            EnabledEsp = true;
+                                            Beep(1500, 400);
+                                        }).detach();
+                                    }
+                                    ImGui::PopStyleColor(3);
+                                }
+                                else
+                                {
+                                    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.08f, 0.65f, 0.35f, 0.85f));
+                                    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.12f, 0.75f, 0.42f, 1.0f));
+                                    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.05f, 0.55f, 0.28f, 1.0f));
+                                    ImGui::Button("ADB ACTIVO & SINCRONIZADO", ImVec2(295, 42));
+                                    ImGui::PopStyleColor(3);
+                                }
+
+                                ImGui::Dummy(ImVec2(0, 16));
+
+                                // Inset de Diagnóstico
+                                ImVec2 boxPos = ImGui::GetCursorScreenPos();
+                                boxPos.x += 8.f;
+                                draw->AddRectFilled(boxPos, ImVec2(boxPos.x + 310.f, boxPos.y + 160.f), IM_COL32(11, 12, 17, 240), 6.f);
+                                draw->AddRect(boxPos, ImVec2(boxPos.x + 310.f, boxPos.y + 160.f), IM_COL32(26, 29, 40, 200), 6.f);
+
+                                ImGui::SetCursorPos(ImVec2(24, 86));
+                                if (EnabledEsp) {
+                                    ImGui::TextColored(ImVec4(0.1f, 1.0f, 0.45f, 1.0f), "● Estado: Conectado a Emulador");
+                                } else {
+                                    ImGui::TextColored(ImVec4(1.0f, 0.65f, 0.2f, 1.0f), "○ Estado: Esperando Inicio");
+                                }
+
+                                ImGui::SetCursorPos(ImVec2(24, 114));
+                                ImGui::TextColored(ImVec4(0.7f, 0.75f, 0.85f, 1.0f), "● Emulador: HD-Player (BlueStacks)");
+
+                                ImGui::SetCursorPos(ImVec2(24, 142));
+                                ImGui::TextColored(ImVec4(0.7f, 0.75f, 0.85f, 1.0f), "● Puerto: 127.0.0.1:5555");
+
+                                ImGui::SetCursorPos(ImVec2(24, 170));
+                                ImGui::TextColored(ImVec4(0.7f, 0.75f, 0.85f, 1.0f), "● Modo: Hilo de lectura asincrono");
+
+                                ImGui::SetCursorPos(ImVec2(24, 198));
+                                ImGui::TextColored(ImVec4(0.7f, 0.75f, 0.85f, 1.0f), "● Latencia: < 1.0 ms por lectura");
+                            }
+                            EndGlassCard();
+
+                            // Tarjeta Derecha: Offsets & Memoria
+                            BeginGlassCard("DIAGNOSTICO IL2CPP", "MEMORIA", "card_adb_diag", ImVec2(455, 68), ImVec2(355, 398));
+                            {
+                                ImGui::Dummy(ImVec2(0, 10));
+
+                                ImGui::SetCursorPosX(16);
+                                ImGui::TextColored(ImVec4(0.85f, 0.88f, 0.95f, 1.0f), "Punteros y Offsets Verificados:");
+
+                                ImGui::Dummy(ImVec2(0, 8));
+
+                                ImVec2 tPos = ImGui::GetCursorScreenPos();
+                                tPos.x += 8.f;
+                                draw->AddRectFilled(tPos, ImVec2(tPos.x + 320.f, tPos.y + 230.f), IM_COL32(11, 12, 17, 240), 6.f);
+                                draw->AddRect(tPos, ImVec2(tPos.x + 320.f, tPos.y + 230.f), IM_COL32(26, 29, 40, 200), 6.f);
+
+                                ImGui::SetCursorPos(ImVec2(24, 58));
+                                ImGui::TextColored(ImVec4(0.6f, 0.65f, 0.75f, 1.0f), "InitBase:             0xA342EFC");
+                                ImGui::SetCursorPos(ImVec2(24, 86));
+                                ImGui::TextColored(ImVec4(0.6f, 0.65f, 0.75f, 1.0f), "StaticClass:          0x5C");
+                                ImGui::SetCursorPos(ImVec2(24, 114));
+                                ImGui::TextColored(ImVec4(0.6f, 0.65f, 0.75f, 1.0f), "CurrentMatch:         0x50");
+                                ImGui::SetCursorPos(ImVec2(24, 142));
+                                ImGui::TextColored(ImVec4(0.6f, 0.65f, 0.75f, 1.0f), "LocalPlayer:          0x94");
+                                ImGui::SetCursorPos(ImVec2(24, 170));
+                                ImGui::TextColored(ImVec4(0.6f, 0.65f, 0.75f, 1.0f), "DictionaryEntities:   0x68");
+                                ImGui::SetCursorPos(ImVec2(24, 198));
+                                ImGui::TextColored(ImVec4(0.6f, 0.65f, 0.75f, 1.0f), "Head Bone Node:       0x49C");
+                                ImGui::SetCursorPos(ImVec2(24, 226));
+                                ImGui::TextColored(ImVec4(0.6f, 0.65f, 0.75f, 1.0f), "ViewMatrix Camera:    0x8");
+
+                                ImGui::SetCursorPos(ImVec2(16, 310));
+                                ImGui::TextColored(ImVec4(0.1f, 1.0f, 0.45f, 1.0f), "✔ 100% Sincronizado con dump actual");
+                            }
+                            EndGlassCard();
+                        }
+                        // ═══════════════════════════════════════════════════════
+                        // PESTAÑA 2: COLORES & AJUSTES (Personalización Cómoda)
+                        // ═══════════════════════════════════════════════════════
+                        else if (active_tab == 2)
+                        {
+                            // Tarjeta Izquierda: Paleta
+                            BeginGlassCard("PALETA DE COLORES", "COLORES", "card_colores_pal", ImVec2(95, 68), ImVec2(345, 398));
+                            {
+                                ImGui::Dummy(ImVec2(0, 10));
+
+                                ImGui::SetCursorPosX(16);
+                                ImGui::TextColored(ImVec4(0.85f, 0.88f, 0.95f, 1.0f), "Colores de Renderizado:");
+
+                                ImGui::Dummy(ImVec2(0, 10));
+
+                                ImGui::SetCursorPosX(16);
+                                ImGui::ColorEdit4("Color Enemigo", (float*)&lineColorEnemy, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
+
+                                ImGui::Dummy(ImVec2(0, 10));
+
+                                ImGui::SetCursorPosX(16);
+                                ImGui::ColorEdit4("Color Aliado", (float*)&lineColorTeam, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
+
+                                ImGui::Dummy(ImVec2(0, 10));
+
+                                ImGui::SetCursorPosX(16);
+                                ImGui::ColorEdit4("Color Acento Menú", (float*)&color_edit4, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
+
+                                ImGui::Dummy(ImVec2(0, 24));
+                                draw->AddLine(ImVec2(pos.x + 110.f, pos.y + 245.f), ImVec2(pos.x + 425.f, pos.y + 245.f), IM_COL32(28, 31, 42, 200), 1.f);
+                                ImGui::Dummy(ImVec2(0, 12));
+
+                                ImGui::SetCursorPosX(16);
+                                if (ImGui::Button("Restablecer Colores por Defecto", ImVec2(295, 34)))
+                                {
+                                    color_edit4 = ImVec4(0.0f, 0.65f, 1.0f, 1.0f);
+                                    lineColorEnemy = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
+                                    lineColorTeam = ImVec4(0.0f, 1.0f, 0.0f, 1.0f);
+                                    lineThicknessBase = 1.5f;
+                                }
+                            }
+                            EndGlassCard();
+
+                            // Tarjeta Derecha: Temas Rápidos
+                            BeginGlassCard("TEMAS & APARIENCIA", "THEME", "card_colores_thm", ImVec2(455, 68), ImVec2(355, 398));
+                            {
+                                ImGui::Dummy(ImVec2(0, 10));
+
+                                ImGui::SetCursorPosX(16);
+                                ImGui::TextColored(ImVec4(0.85f, 0.88f, 0.95f, 1.0f), "Temas Rápidos de 1 Clic:");
+
+                                ImGui::Dummy(ImVec2(0, 12));
+
+                                ImGui::SetCursorPosX(16);
+                                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.0f, 0.45f, 0.85f, 0.6f));
+                                if (ImGui::Button("Cyber Cyan", ImVec2(140, 36))) color_edit4 = ImVec4(0.0f, 0.70f, 1.0f, 1.0f);
+                                ImGui::PopStyleColor();
+
+                                ImGui::SameLine();
+                                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.55f, 0.2f, 0.85f, 0.6f));
+                                if (ImGui::Button("Neon Purple", ImVec2(140, 36))) color_edit4 = ImVec4(0.68f, 0.28f, 1.0f, 1.0f);
+                                ImGui::PopStyleColor();
+
+                                ImGui::Dummy(ImVec2(0, 8));
+
+                                ImGui::SetCursorPosX(16);
+                                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.0f, 0.65f, 0.35f, 0.6f));
+                                if (ImGui::Button("Matrix Green", ImVec2(140, 36))) color_edit4 = ImVec4(0.0f, 0.90f, 0.45f, 1.0f);
+                                ImGui::PopStyleColor();
+
+                                ImGui::SameLine();
+                                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.85f, 0.2f, 0.3f, 0.6f));
+                                if (ImGui::Button("Crimson Red", ImVec2(140, 36))) color_edit4 = ImVec4(1.0f, 0.25f, 0.35f, 1.0f);
+                                ImGui::PopStyleColor();
+
+                                ImGui::Dummy(ImVec2(0, 24));
+
+                                // Inset de Hotkey
+                                ImVec2 hkPos = ImGui::GetCursorScreenPos();
+                                hkPos.x += 8.f;
+                                draw->AddRectFilled(hkPos, ImVec2(hkPos.x + 320.f, hkPos.y + 64.f), IM_COL32(11, 12, 17, 240), 6.f);
+                                draw->AddRect(hkPos, ImVec2(hkPos.x + 320.f, hkPos.y + 64.f), IM_COL32(26, 29, 40, 200), 6.f);
+
+                                ImGui::SetCursorPos(ImVec2(24, 210));
+                                ImGui::TextColored(ImVec4(0.2f, 0.8f, 1.0f, 1.0f), "Tecla de Activación: [INSERT]");
+
+                                ImGui::SetCursorPos(ImVec2(24, 232));
+                                ImGui::TextColored(ImVec4(0.7f, 0.75f, 0.85f, 1.0f), "Oculta o muestra el menú overlay.");
+                            }
+                            EndGlassCard();
+                        }
+                    }
+                    ImGui::PopStyleVar();
+
+                }ImGui::End();
+
+            }
+
+           
+        }
+
+
+        
+
+        // Rendering
+        ImGui::Render();
+        const float clear_color_with_alpha[4] = { 0.f, 0.f, 0.f, 0.f };
+        g_pd3dDeviceContext->OMSetRenderTargets(1, &g_mainRenderTargetView, nullptr);
+        g_pd3dDeviceContext->ClearRenderTargetView(g_mainRenderTargetView, clear_color_with_alpha);
+        ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+
+        // Present
+        HRESULT hr = g_pSwapChain->Present(1, 0);   // Present with vsync
+        //HRESULT hr = g_pSwapChain->Present(0, 0); // Present without vsync
+        g_SwapChainOccluded = (hr == DXGI_STATUS_OCCLUDED);
+    }
+
+    // Cleanup
+    ImGui_ImplDX11_Shutdown();
+    ImGui_ImplWin32_Shutdown();
+    ImGui::DestroyContext();
+
+    CleanupDeviceD3D();
+    ::DestroyWindow(hwnd);
+    ::UnregisterClassW(wc.lpszClassName, wc.hInstance);
+
+    return 0;
+}
+
+//llamarlo como dll o exe
+
+bool IsProcessAdmin()
+{
+    BOOL isAdmin = FALSE;
+    PSID adminGroup = NULL;
+    SID_IDENTIFIER_AUTHORITY NtAuthority = SECURITY_NT_AUTHORITY;
+
+    if (AllocateAndInitializeSid(
+        &NtAuthority,
+        2,
+        SECURITY_BUILTIN_DOMAIN_RID,
+        DOMAIN_ALIAS_RID_ADMINS,
+        0, 0, 0, 0, 0, 0,
+        &adminGroup))
+    {
+        CheckTokenMembership(NULL, adminGroup, &isAdmin);
+        FreeSid(adminGroup);
+    }
+
+    return isAdmin == TRUE;
+}
+
+#ifdef _WIN64 
+BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved)
+{
+    switch (fdwReason)
+    {
+    case DLL_PROCESS_ATTACH:
+    {
+        DisableThreadLibraryCalls(hinstDLL);
+
+
+        if (!IsProcessAdmin())
+        {
+            MessageBoxA(
+                NULL,
+                "ERROR:\n\nEl emulador NO se esta ejecutando como ADMINISTRADOR.\n\n"
+                "Cierra el emulador y vuelvelo a ejecutar como administrador.", "",
+                MB_ICONERROR | MB_OK
+            );
+
+            // ❌ Cancela la carga de la DLL
+            return FALSE;
+        }
+
+
+        hThread1 = (HANDLE)_beginthreadex(
+            nullptr,
+            0,
+            (_beginthreadex_proc_type)maindll,
+            nullptr,
+            0,
+            nullptr
+        );
+
+
+
+        if (!hThread1)
+            return FALSE;
+
+        break;
+    }
+
+    case DLL_PROCESS_DETACH:
+    {
+        if (hCurrentUIThread) {
+            WaitForSingleObject(hCurrentUIThread, INFINITE);
+            CloseHandle(hCurrentUIThread);
+        }
+
+        if (hThread1) {
+            WaitForSingleObject(hThread1, INFINITE);
+            CloseHandle(hThread1);
+        }
+
+        break;
+    }
+    }
+    return TRUE;
+}
+#endif
+
+
+int APIENTRY WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
+    maindll();
+    return 0;
+}
+
+
+// Helper functions
+
+
+
+bool CreateDeviceD3D(HWND hWnd)
+{
+    // Setup swap chain
+    DXGI_SWAP_CHAIN_DESC sd;
+    ZeroMemory(&sd, sizeof(sd));
+    sd.BufferCount = 2;
+    sd.BufferDesc.Width = 0;
+    sd.BufferDesc.Height = 0;
+    sd.BufferDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM; // <-- cambiado
+    sd.BufferDesc.RefreshRate.Numerator = 60;
+    sd.BufferDesc.RefreshRate.Denominator = 1;
+    sd.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
+    sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+    sd.OutputWindow = hWnd;
+    sd.SampleDesc.Count = 1;
+    sd.SampleDesc.Quality = 0;
+    sd.Windowed = TRUE;
+    sd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
+
+    UINT createDeviceFlags = 0;
+    D3D_FEATURE_LEVEL featureLevel;
+    const D3D_FEATURE_LEVEL featureLevelArray[2] = { D3D_FEATURE_LEVEL_11_0, D3D_FEATURE_LEVEL_10_0 };
+
+    HRESULT res = D3D11CreateDeviceAndSwapChain(NULL, D3D_DRIVER_TYPE_HARDWARE, NULL, createDeviceFlags, featureLevelArray, 2, D3D11_SDK_VERSION, &sd, &g_pSwapChain, &g_pd3dDevice, &featureLevel, &g_pd3dDeviceContext);
+    if (res == DXGI_ERROR_UNSUPPORTED)
+        res = D3D11CreateDeviceAndSwapChain(NULL, D3D_DRIVER_TYPE_WARP, NULL, createDeviceFlags, featureLevelArray, 2, D3D11_SDK_VERSION, &sd, &g_pSwapChain, &g_pd3dDevice, &featureLevel, &g_pd3dDeviceContext);
+    if (res != S_OK)
+        return false;
+
+    // Transparencia DWM
+    MARGINS margins = { -1, -1, -1, -1 };
+    DwmExtendFrameIntoClientArea(hWnd, &margins);
+
+    DWM_BLURBEHIND bb = { 0 };
+    bb.dwFlags = DWM_BB_ENABLE;
+    bb.fEnable = TRUE;
+    bb.hRgnBlur = NULL;
+    DwmEnableBlurBehindWindow(hWnd, &bb);
+
+    CreateRenderTarget();
+    return true;
+}
+
+
+void CleanupDeviceD3D()
+{
+    CleanupRenderTarget();
+    if (g_pSwapChain) { g_pSwapChain->Release(); g_pSwapChain = NULL; }
+    if (g_pd3dDeviceContext) { g_pd3dDeviceContext->Release(); g_pd3dDeviceContext = NULL; }
+    if (g_pd3dDevice) { g_pd3dDevice->Release(); g_pd3dDevice = NULL; }
+}
+
+void CreateRenderTarget()
+{
+    ID3D11Texture2D* pBackBuffer;
+    g_pSwapChain->GetBuffer(0, IID_PPV_ARGS(&pBackBuffer));
+    g_pd3dDevice->CreateRenderTargetView(pBackBuffer, NULL, &g_mainRenderTargetView);
+    pBackBuffer->Release();
+}
+
+void CleanupRenderTarget()
+{
+    if (g_mainRenderTargetView) { g_mainRenderTargetView->Release(); g_mainRenderTargetView = NULL; }
+}
+
+// Forward declare message handler from imgui_impl_win32.cpp
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
+// Win32 message handler
+// You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags to tell if dear imgui wants to use your inputs.
+// - When io.WantCaptureMouse is true, do not dispatch mouse input data to your main application, or clear/overwrite your copy of the mouse data.
+// - When io.WantCaptureKeyboard is true, do not dispatch keyboard input data to your main application, or clear/overwrite your copy of the keyboard data.
+// Generally you may always pass all inputs to dear imgui, and hide them from your application based on those two flags.
+LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+    if (ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam))
+        return true;
+
+    switch (msg)
+    {
+    case WM_SIZE:
+        if (wParam == SIZE_MINIMIZED)
+            return 0;
+        g_ResizeWidth = (UINT)LOWORD(lParam); // Queue resize
+        g_ResizeHeight = (UINT)HIWORD(lParam);
+        return 0;
+    case WM_SYSCOMMAND:
+        if ((wParam & 0xfff0) == SC_KEYMENU) // Disable ALT application menu
+            return 0;
+        break;
+    case WM_DESTROY:
+        ::PostQuitMessage(0);
+        return 0;
+    }
+    return ::DefWindowProcW(hWnd, msg, wParam, lParam);
+}

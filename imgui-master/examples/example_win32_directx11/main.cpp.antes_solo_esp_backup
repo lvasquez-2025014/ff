@@ -1,0 +1,395 @@
+#include "main.h"
+
+// ============================================================================
+// ARQUITECTURA MODULAR DEL PROYECTO // SEPARACION COMPLETA DE RESPONSABILIDADES
+// ============================================================================
+// 1. Core:       Configuración global, singleton de estado, y offsets IL2CPP.
+// 2. Math:       Vectores (2D, 3D, 4D), Matrices (4x4), y Proyeccion WorldToScreen.
+// 3. Bridge:     Proceso emulador, lectura/escritura de memoria fisica y cliente ADB.
+// 4. Features:   Sistema modular desacoplado (IFeature, FeatureManager).
+//    - Visuals:  Modulo de ESP Lineas a la cabeza.
+//    - Exploits: Modulos independientes por archivo (Fast Medkit, Speed Multiplier).
+// 5. UI:         Estilos modernos, tarjetas de vidrio (Glassmorphism), y Menu reactivo.
+// ============================================================================
+#include "Core/Config.h"
+#include "Core/Offsets.h"
+#include "Math/Vector.h"
+#include "Math/Matrix.h"
+#include "Math/Projection.h"
+#include "Bridge/Process.h"
+#include "Bridge/Memory.h"
+#include "Bridge/AdbClient.h"
+#include "Features/IFeature.h"
+#include "Features/FeatureManager.h"
+#include "Features/Visuals/EspLineFeature.h"
+#include "Features/Exploits/silent.h"
+#include "UI/Theme.h"
+#include "UI/Menu.h"
+
+// Inicializador de módulos y características de la arquitectura
+void InitializeArchitecture() {
+    // 1. Inicializar offsets de juego
+    Core::Offsets::Initialize(0);
+
+    // 2. Registrar características en el gestor modular
+    auto& fm = Features::FeatureManager::Get();
+
+    // Visuales
+    fm.RegisterFeature(std::make_shared<Features::Visuals::EspLineFeature>());
+
+    // Exploits modulares independientes
+    fm.RegisterFeature(std::make_shared<Features::Exploits::SilentAimFeature>());
+}
+
+// Comprobación de permisos de Administrador
+bool IsProcessAdmin() {
+    BOOL isAdmin = FALSE;
+    PSID adminGroup = NULL;
+    SID_IDENTIFIER_AUTHORITY NtAuthority = SECURITY_NT_AUTHORITY;
+
+    if (AllocateAndInitializeSid(
+        &NtAuthority, 2,
+        SECURITY_BUILTIN_DOMAIN_RID,
+        DOMAIN_ALIAS_RID_ADMINS,
+        0, 0, 0, 0, 0, 0,
+        &adminGroup)) {
+        CheckTokenMembership(NULL, adminGroup, &isAdmin);
+        FreeSid(adminGroup);
+    }
+    return (isAdmin == TRUE);
+}
+
+// Bucle principal del ejecutable o DLL inyectada
+int maindll() {
+    // 1. Configuración de pantalla y DPI
+    ImGui_ImplWin32_EnableDpiAwareness();
+    float main_scale = ImGui_ImplWin32_GetDpiScaleForMonitor(::MonitorFromPoint(POINT{ 0, 0 }, MONITOR_DEFAULTTOPRIMARY));
+
+    int width = GetSystemMetrics(SM_CXSCREEN);
+    int height = GetSystemMetrics(SM_CYSCREEN);
+
+    // 2. Registro de clase y creación de ventana Overlay Transparente
+    WNDCLASSEXW wc = { sizeof(WNDCLASSEXW) };
+    wc.style = CS_HREDRAW | CS_VREDRAW;
+    wc.lpfnWndProc = WndProc;
+    wc.cbClsExtra = 0;
+    wc.cbWndExtra = 0;
+    wc.hInstance = GetModuleHandle(nullptr);
+    wc.hIcon = LoadIcon(nullptr, IDI_APPLICATION);
+    wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
+    wc.hbrBackground = (HBRUSH)GetStockObject(NULL_BRUSH);
+    wc.lpszMenuName = nullptr;
+    wc.lpszClassName = L"ostorga_overlay_class";
+    wc.hIconSm = LoadIcon(nullptr, IDI_APPLICATION);
+    RegisterClassExW(&wc);
+
+    hwnd = CreateWindowExW(
+        WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TOOLWINDOW,
+        wc.lpszClassName, nullptr,
+        WS_POPUP,
+        0, 0, width, height,
+        nullptr, nullptr, wc.hInstance, nullptr
+    );
+
+    SetLayeredWindowAttributes(hwnd, 0, 255, LWA_ALPHA);
+
+    // 3. Inicializar DirectX 11
+    if (!CreateDeviceD3D(hwnd)) {
+        CleanupDeviceD3D();
+        ::UnregisterClassW(wc.lpszClassName, wc.hInstance);
+        return 1;
+    }
+
+    ::ShowWindow(hwnd, SW_SHOWDEFAULT);
+    ::UpdateWindow(hwnd);
+
+    // 4. Inicializar contexto ImGui
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
+
+    ImGuiStyle& style = ImGui::GetStyle();
+    style.ScaleAllSizes(main_scale);
+    style.FontScaleDpi = main_scale;
+
+    ImGui_ImplWin32_Init(hwnd);
+    ImGui_ImplDX11_Init(g_pd3dDevice, g_pd3dDeviceContext);
+
+    // 5. Cargar Fuentes TTF
+    Inter_S = io.Fonts->AddFontFromMemoryTTF(&Inter_Semmi, sizeof Inter_Semmi, 14.5f, NULL, io.Fonts->GetGlyphRangesCyrillic());
+    font2::fuentezada = io.Fonts->AddFontFromMemoryTTF(&Inter_Semmi, sizeof(Inter_Semmi), 10.5f, NULL, io.Fonts->GetGlyphRangesCyrillic());
+    font::fuentezada = font2::fuentezada;
+    Inter_S_1 = io.Fonts->AddFontFromMemoryTTF(&Inter_Semmi, sizeof Inter_Semmi, 16.f, NULL, io.Fonts->GetGlyphRangesCyrillic());
+    Icon_Arrow = io.Fonts->AddFontFromMemoryTTF(&Arrow, sizeof Arrow, 6.f, NULL, io.Fonts->GetGlyphRangesCyrillic());
+    ImFont* Nev1 = io.Fonts->AddFontFromMemoryTTF(&Nevan, sizeof Nevan, 25, NULL, io.Fonts->GetGlyphRangesCyrillic());
+    (void)Nev1;
+
+    // 6. Cargar Texturas D3D11 desde memoria
+    if (image2::main == nullptr) D3DX11CreateShaderResourceViewFromMemory(g_pd3dDevice, main_icon, sizeof(main_icon), &info, pump, &image2::main, 0);
+    if (image2::gless == nullptr) D3DX11CreateShaderResourceViewFromMemory(g_pd3dDevice, glass_icon, sizeof(glass_icon), &info, pump, &image2::gless, 0);
+    if (image2::help == nullptr) D3DX11CreateShaderResourceViewFromMemory(g_pd3dDevice, help_icon, sizeof(help_icon), &info, pump, &image2::help, 0);
+    if (image2::settings == nullptr) D3DX11CreateShaderResourceViewFromMemory(g_pd3dDevice, settings_icon, sizeof(settings_icon), &info, pump, &image2::settings, 0);
+    if (image2::panel == nullptr) D3DX11CreateShaderResourceViewFromMemory(g_pd3dDevice, world_icon, sizeof(world_icon), &info, pump, &image2::panel, 0);
+    if (image2::other == nullptr) D3DX11CreateShaderResourceViewFromMemory(g_pd3dDevice, other_icon, sizeof(other_icon), &info, pump, &image2::other, 0);
+    if (image2::save == nullptr) D3DX11CreateShaderResourceViewFromMemory(g_pd3dDevice, save_icon, sizeof(save_icon), &info, pump, &image2::save, 0);
+    if (image2::login111 == nullptr) D3DX11CreateShaderResourceViewFromMemory(g_pd3dDevice, logintaboxcy666666, sizeof(logintaboxcy666666), &info, pump, &image2::login111, 0);
+    if (image2::Register111 == nullptr) D3DX11CreateShaderResourceViewFromMemory(g_pd3dDevice, registertaboxcy666666, sizeof(registertaboxcy666666), &info, pump, &image2::Register111, 0);
+    if (logo == nullptr) D3DX11CreateShaderResourceViewFromMemory(g_pd3dDevice, logotype2, sizeof(logotype2), &info, pump, &logo, 0);
+    if (fu1l == nullptr) D3DX11CreateShaderResourceViewFromMemory(g_pd3dDevice, net2, sizeof(net2), &info, pump, &fu1l, 0);
+    if (image2::rayo == nullptr) D3DX11CreateShaderResourceViewFromMemory(g_pd3dDevice, rayoo, sizeof(rayoo), &info, pump, &image2::rayo, 0);
+    if (image2::flecha == nullptr) D3DX11CreateShaderResourceViewFromMemory(g_pd3dDevice, flechaa, sizeof(flechaa), &info, pump, &image2::flecha, 0);
+    if (image2::ancla == nullptr) D3DX11CreateShaderResourceViewFromMemory(g_pd3dDevice, anclaa, sizeof(anclaa), &info, pump, &image2::ancla, 0);
+    if (image2::fastfire == nullptr) D3DX11CreateShaderResourceViewFromMemory(g_pd3dDevice, fastfiree, sizeof(fastfiree), &info, pump, &image2::fastfire, 0);
+    if (image2::tpenemy == nullptr) D3DX11CreateShaderResourceViewFromMemory(g_pd3dDevice, tpenemyy, sizeof(tpenemyy), &info, pump, &image2::tpenemy, 0);
+    if (image2::nieve == nullptr) D3DX11CreateShaderResourceViewFromMemory(g_pd3dDevice, nievee, sizeof(nievee), &info, pump, &image2::nieve, 0);
+    if (image2::ghost == nullptr) D3DX11CreateShaderResourceViewFromMemory(g_pd3dDevice, ghosst, sizeof(ghosst), &info, pump, &image2::ghost, 0);
+    if (image2::ffimagen == nullptr) D3DX11CreateShaderResourceViewFromMemory(g_pd3dDevice, ffimagen, sizeof(ffimagen), &info, pump, &image2::ffimagen, 0);
+    if (image2::ffimagenMAX == nullptr) D3DX11CreateShaderResourceViewFromMemory(g_pd3dDevice, ffimagenMAX, sizeof(ffimagenMAX), &info, pump, &image2::ffimagenMAX, 0);
+    if (image2::ffimagenTELA == nullptr) D3DX11CreateShaderResourceViewFromMemory(g_pd3dDevice, ffimagenTELA, sizeof(ffimagenTELA), &info, pump, &image2::ffimagenTELA, 0);
+
+    // 7. Inicializar Arquitectura Modular (IFeature y FeatureManager)
+    InitializeArchitecture();
+
+    // Estado inicial de clickeabilidad
+    auto& cfg = Core::GetConfig();
+    UI::ToggleClickability(hwnd, cfg.IsClickable);
+
+    // 8. Bucle Principal de Renderizado y Mensajes
+    bool done = false;
+    while (!done) {
+        MSG msg;
+        while (::PeekMessage(&msg, nullptr, 0U, 0U, PM_REMOVE)) {
+            ::TranslateMessage(&msg);
+            ::DispatchMessage(&msg);
+            if (msg.message == WM_QUIT)
+                done = true;
+        }
+        if (done)
+            break;
+
+        // Manejo de oclusión de SwapChain
+        if (g_SwapChainOccluded && g_pSwapChain->Present(0, DXGI_PRESENT_TEST) == DXGI_STATUS_OCCLUDED) {
+            ::Sleep(10);
+            continue;
+        }
+        g_SwapChainOccluded = false;
+
+        // Redimensionamiento dinámico
+        if (g_ResizeWidth != 0 && g_ResizeHeight != 0) {
+            CleanupRenderTarget();
+            g_pSwapChain->ResizeBuffers(0, g_ResizeWidth, g_ResizeHeight, DXGI_FORMAT_UNKNOWN, 0);
+            g_ResizeWidth = g_ResizeHeight = 0;
+            CreateRenderTarget();
+        }
+
+        // Hotkey de alternancia de menú [INSERT]
+        if (GetAsyncKeyState(VK_INSERT) & 1) {
+            cfg.MenuOpen = !cfg.MenuOpen;
+            cfg.IsClickable = cfg.MenuOpen;
+            UI::ToggleClickability(hwnd, cfg.IsClickable);
+        }
+
+        // Hotkey de Emergencia / Panic Key [DELETE]
+        // Cierra el panel, el emulador y todos los procesos de BlueStacks
+        if (GetAsyncKeyState(VK_DELETE) & 1) {
+            Bridge::TerminateAllBlueStacksProcesses();
+            done = true;
+            ::PostQuitMessage(0);
+            break;
+        }
+
+        // Sincronizar bases de memoria con ADB
+        if (Il2Cpp != 0 && Core::Offsets::Il2Cpp == 0) {
+            Core::Offsets::Il2Cpp = Il2Cpp;
+        }
+        if (Main::EnabledEsp) {
+            cfg.AdbConnected = true;
+        }
+
+        // Iniciar nuevo fotograma ImGui
+        ImGui_ImplDX11_NewFrame();
+        ImGui_ImplWin32_NewFrame();
+        ImGui::NewFrame();
+
+        // ═════════════════════════════════════════════════════════════════════
+        // PIPELINE DE EJECUCION MODULAR
+        // ═════════════════════════════════════════════════════════════════════
+        // A. Actualizar lógica interna de los módulos registrados (IFeature)
+        Features::FeatureManager::Get().UpdateAll();
+
+        // B. Renderizar características visuales (ESP Lines, etc.)
+        Features::FeatureManager::Get().RenderAll();
+
+        // C. Renderizar Menú de Usuario (Glassmorphism & Telemetría)
+        UI::RenderMenu();
+        // ═════════════════════════════════════════════════════════════════════
+
+        // Finalizar fotograma y presentar en pantalla con VSync
+        ImGui::Render();
+        const float clear_color_with_alpha[4] = { 0.f, 0.f, 0.f, 0.f };
+        g_pd3dDeviceContext->OMSetRenderTargets(1, &g_mainRenderTargetView, nullptr);
+        g_pd3dDeviceContext->ClearRenderTargetView(g_mainRenderTargetView, clear_color_with_alpha);
+        ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+
+        HRESULT hr = g_pSwapChain->Present(1, 0);
+        g_SwapChainOccluded = (hr == DXGI_STATUS_OCCLUDED);
+    }
+
+    // 9. Limpieza de recursos
+    ImGui_ImplDX11_Shutdown();
+    ImGui_ImplWin32_Shutdown();
+    ImGui::DestroyContext();
+
+    CleanupDeviceD3D();
+    if (hwnd && IsWindow(hwnd)) {
+        ::DestroyWindow(hwnd);
+    }
+    ::UnregisterClassW(wc.lpszClassName, wc.hInstance);
+
+    ExitProcess(0);
+}
+
+#ifdef _WIN64 
+BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved) {
+    switch (fdwReason) {
+    case DLL_PROCESS_ATTACH:
+        DisableThreadLibraryCalls(hinstDLL);
+        if (!IsProcessAdmin()) {
+            MessageBoxA(
+                NULL,
+                "ERROR:\n\nEl emulador NO se esta ejecutando como ADMINISTRADOR.\n\n"
+                "Cierra el emulador y vuelvelo a ejecutar como administrador.", "",
+                MB_ICONERROR | MB_OK
+            );
+            return FALSE;
+        }
+        hThread1 = (HANDLE)_beginthreadex(
+            nullptr, 0,
+            (_beginthreadex_proc_type)maindll,
+            nullptr, 0, nullptr
+        );
+        if (!hThread1)
+            return FALSE;
+        break;
+
+    case DLL_PROCESS_DETACH:
+        if (hCurrentUIThread) {
+            WaitForSingleObject(hCurrentUIThread, INFINITE);
+            CloseHandle(hCurrentUIThread);
+        }
+        if (hThread1) {
+            WaitForSingleObject(hThread1, INFINITE);
+            CloseHandle(hThread1);
+        }
+        break;
+    }
+    return TRUE;
+}
+#endif
+
+int APIENTRY WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
+    maindll();
+    return 0;
+}
+
+// ============================================================================
+// FUNCIONES AUXILIARES DIRECTX 11
+// ============================================================================
+bool CreateDeviceD3D(HWND hWnd) {
+    DXGI_SWAP_CHAIN_DESC sd;
+    ZeroMemory(&sd, sizeof(sd));
+    sd.BufferCount = 2;
+    sd.BufferDesc.Width = 0;
+    sd.BufferDesc.Height = 0;
+    sd.BufferDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+    sd.BufferDesc.RefreshRate.Numerator = 60;
+    sd.BufferDesc.RefreshRate.Denominator = 1;
+    sd.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
+    sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+    sd.OutputWindow = hWnd;
+    sd.SampleDesc.Count = 1;
+    sd.SampleDesc.Quality = 0;
+    sd.Windowed = TRUE;
+    sd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
+
+    UINT createDeviceFlags = 0;
+    D3D_FEATURE_LEVEL featureLevel;
+    const D3D_FEATURE_LEVEL featureLevelArray[2] = { D3D_FEATURE_LEVEL_11_0, D3D_FEATURE_LEVEL_10_0 };
+
+    HRESULT res = D3D11CreateDeviceAndSwapChain(
+        NULL, D3D_DRIVER_TYPE_HARDWARE, NULL,
+        createDeviceFlags, featureLevelArray, 2,
+        D3D11_SDK_VERSION, &sd, &g_pSwapChain,
+        &g_pd3dDevice, &featureLevel, &g_pd3dDeviceContext
+    );
+    if (res == DXGI_ERROR_UNSUPPORTED) {
+        res = D3D11CreateDeviceAndSwapChain(
+            NULL, D3D_DRIVER_TYPE_WARP, NULL,
+            createDeviceFlags, featureLevelArray, 2,
+            D3D11_SDK_VERSION, &sd, &g_pSwapChain,
+            &g_pd3dDevice, &featureLevel, &g_pd3dDeviceContext
+        );
+    }
+    if (res != S_OK)
+        return false;
+
+    // Configurar canal alfa y transparencia DWM
+    MARGINS margins = { -1, -1, -1, -1 };
+    DwmExtendFrameIntoClientArea(hWnd, &margins);
+
+    DWM_BLURBEHIND bb = { 0 };
+    bb.dwFlags = DWM_BB_ENABLE;
+    bb.fEnable = TRUE;
+    bb.hRgnBlur = NULL;
+    DwmEnableBlurBehindWindow(hWnd, &bb);
+
+    CreateRenderTarget();
+    return true;
+}
+
+void CleanupDeviceD3D() {
+    CleanupRenderTarget();
+    if (g_pSwapChain) { g_pSwapChain->Release(); g_pSwapChain = NULL; }
+    if (g_pd3dDeviceContext) { g_pd3dDeviceContext->Release(); g_pd3dDeviceContext = NULL; }
+    if (g_pd3dDevice) { g_pd3dDevice->Release(); g_pd3dDevice = NULL; }
+}
+
+void CreateRenderTarget() {
+    ID3D11Texture2D* pBackBuffer;
+    g_pSwapChain->GetBuffer(0, IID_PPV_ARGS(&pBackBuffer));
+    g_pd3dDevice->CreateRenderTargetView(pBackBuffer, NULL, &g_mainRenderTargetView);
+    pBackBuffer->Release();
+}
+
+void CleanupRenderTarget() {
+    if (g_mainRenderTargetView) {
+        g_mainRenderTargetView->Release();
+        g_mainRenderTargetView = NULL;
+    }
+}
+
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
+LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+    if (ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam))
+        return true;
+
+    switch (msg) {
+    case WM_SIZE:
+        if (wParam == SIZE_MINIMIZED)
+            return 0;
+        g_ResizeWidth = (UINT)LOWORD(lParam);
+        g_ResizeHeight = (UINT)HIWORD(lParam);
+        return 0;
+    case WM_SYSCOMMAND:
+        if ((wParam & 0xfff0) == SC_KEYMENU)
+            return 0;
+        break;
+    case WM_DESTROY:
+        ::PostQuitMessage(0);
+        return 0;
+    }
+    return ::DefWindowProcW(hWnd, msg, wParam, lParam);
+}

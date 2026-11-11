@@ -1,0 +1,33 @@
+{
+  "name": "NeonHeist",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "$className": "ReplicatedStorage",
+      "$path": "src/ReplicatedStorage",
+      "Remotes": {
+        "$className": "Folder",
+        "AddSpeed": { "$className": "RemoteEvent" },
+        "Rebirth": { "$className": "RemoteEvent" },
+        "BuyUpgrade": { "$className": "RemoteEvent" },
+        "SyncState": { "$className": "RemoteEvent" },
+        "Notify": { "$className": "RemoteEvent" },
+        "GetState": { "$className": "RemoteFunction" },
+        "FX": { "$className": "RemoteEvent" },
+        "Leaderboard": { "$className": "RemoteEvent" },
+        "ClaimDaily": { "$className": "RemoteEvent" }
+      }
+    },
+    "ServerScriptService": {
+      "$className": "ServerScriptService",
+      "$path": "src/ServerScriptService"
+    },
+    "StarterPlayer": {
+      "$className": "StarterPlayer",
+      "StarterPlayerScripts": {
+        "$className": "StarterPlayerScripts",
+        "$path": "src/StarterPlayer/StarterPlayerScripts"
+      }
+    }
+  }
+}

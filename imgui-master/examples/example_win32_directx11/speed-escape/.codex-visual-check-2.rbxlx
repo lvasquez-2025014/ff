@@ -1,0 +1,3121 @@
+<roblox version="4">
+  <Item class="ReplicatedStorage" referent="0">
+    <Properties>
+      <string name="Name">ReplicatedStorage</string>
+    </Properties>
+    <Item class="Folder" referent="1">
+      <Properties>
+        <string name="Name">Shared</string>
+      </Properties>
+      <Item class="ModuleScript" referent="2">
+        <Properties>
+          <string name="Name">Config</string>
+          <string name="Source"><![CDATA[-- Configuracion compartida entre servidor y cliente.
+-- Todo el balance del juego esta aqui.
+
+local Config = {}
+
+-- Mapa
+Config.TrackLength = 6000
+Config.TrackWidth = 44
+Config.CheckpointSpacing = 500
+Config.CheckpointCount = 11
+Config.ZoneLength = 1000
+Config.ZoneCount = 6
+
+-- Contrato principal: recoger nucleos en orden y extraer en la meta.
+Config.HeistCoreCount = 3
+Config.HeistCoreReward = 500
+Config.HeistCompletionReward = 2500
+
+-- Zonas visuales (cada 1000 studs)
+Config.Zones = {
+	{ Name = "CIUDAD NEON", FloorA = Color3.fromRGB(22, 26, 48), FloorB = Color3.fromRGB(30, 36, 66), Accent = Color3.fromRGB(80, 220, 255) },
+	{ Name = "TUNEL MAGENTA", FloorA = Color3.fromRGB(34, 20, 46), FloorB = Color3.fromRGB(46, 26, 60), Accent = Color3.fromRGB(255, 90, 220) },
+	{ Name = "ZONA TOXICA", FloorA = Color3.fromRGB(18, 38, 32), FloorB = Color3.fromRGB(24, 50, 40), Accent = Color3.fromRGB(80, 255, 140) },
+	{ Name = "SECTOR SOLAR", FloorA = Color3.fromRGB(48, 32, 16), FloorB = Color3.fromRGB(60, 40, 20), Accent = Color3.fromRGB(255, 170, 60) },
+	{ Name = "ABISMO VIOLETA", FloorA = Color3.fromRGB(32, 20, 52), FloorB = Color3.fromRGB(42, 26, 66), Accent = Color3.fromRGB(170, 110, 255) },
+	{ Name = "NUCLEO ROJO", FloorA = Color3.fromRGB(48, 20, 24), FloorB = Color3.fromRGB(60, 26, 30), Accent = Color3.fromRGB(255, 80, 90) },
+}
+
+-- Velocidad
+Config.BaseWalkSpeed = 20
+Config.SpeedCurve = 13
+Config.MaxWalkSpeed = 120
+Config.KeyRateLimit = 35
+
+-- Combo por tecleo
+Config.ComboWindow = 0.85
+Config.ComboMax = 100
+Config.ComboCoinBonus = 0.01 -- +1% monedas por punto de combo (max +100%)
+
+-- Recompensas
+Config.CheckpointSpeedBonus = 50
+Config.CheckpointCoinBase = 40
+Config.FinishReward = 1500
+Config.DailyRewards = { 250, 400, 650, 950, 1400, 2000, 3000 }
+Config.DailySpeedReward = 25
+Config.BoostAmount = 100
+Config.BoostCooldown = 2
+Config.ObstaclePenalty = 0.25
+Config.ObstacleCooldown = 1.5
+
+-- Monedas del mapa
+Config.CoinValue = 10
+Config.CoinRespawn = 18
+Config.CoinPerZone = 8
+Config.MagnetBase = 8
+
+-- Renacimiento (prestigio)
+Config.RebirthRequirement = 2500
+Config.RebirthSpeedBonus = 0.25
+Config.RebirthCoinBonus = 0.25
+
+-- Mejoras compradas con monedas
+Config.Upgrades = {
+	Speed = { MaxLevel = 30, BaseCost = 500, Growth = 1.50, Effect = 0.05, Label = "Velocidad" },
+	Coins = { MaxLevel = 30, BaseCost = 750, Growth = 1.50, Effect = 0.10, Label = "Monedas" },
+	Auto = { MaxLevel = 20, BaseCost = 1200, Growth = 1.60, Effect = 1, Label = "Auto +1/s" },
+	Magnet = { MaxLevel = 15, BaseCost = 900, Growth = 1.55, Effect = 4, Label = "Iman" },
+	Jump = { MaxLevel = 10, BaseCost = 1000, Growth = 1.70, Effect = 5, Label = "Salto" },
+}
+
+-- Misiones: objetivo = BaseTarget * Growth^nivel + Step * nivel
+Config.Missions = {
+	Keys = { Label = "Presiona teclas", BaseTarget = 300, Growth = 1.45, Step = 0, BaseReward = 200, RewardGrowth = 1.55 },
+	Coins = { Label = "Recoge monedas", BaseTarget = 400, Growth = 1.50, Step = 0, BaseReward = 250, RewardGrowth = 1.55 },
+	Checkpoint = { Label = "Pasa checkpoints", BaseTarget = 3, Growth = 1.00, Step = 2, BaseReward = 350, RewardGrowth = 1.60 },
+}
+
+-- Rangos (segun velocidad)
+Config.RankTiers = {
+	{ Speed = 0, Name = "NOVATO", Color = Color3.fromRGB(170, 180, 210) },
+	{ Speed = 250, Name = "VELOCISTA", Color = Color3.fromRGB(80, 255, 150) },
+	{ Speed = 1000, Name = "SUPERSONICO", Color = Color3.fromRGB(80, 220, 255) },
+	{ Speed = 2500, Name = "HIPERSONICO", Color = Color3.fromRGB(255, 215, 60) },
+	{ Speed = 10000, Name = "LIGHTSPEED", Color = Color3.fromRGB(255, 120, 60) },
+	{ Speed = 50000, Name = "LEYENDA", Color = Color3.fromRGB(255, 80, 220) },
+}
+
+-- Pega aqui los IDs de tus gamepasses (0 = desactivado).
+Config.PassIds = {
+	DoubleSpeed = 0,
+	DoubleCoins = 0,
+}
+
+function Config.GetUpgradeCost(key, level)
+	local upgrade = Config.Upgrades[key]
+	if not upgrade then
+		return math.huge
+	end
+	return math.floor(upgrade.BaseCost * (upgrade.Growth ^ level))
+end
+
+function Config.GetMissionTarget(key, level)
+	local mission = Config.Missions[key]
+	if not mission then
+		return math.huge
+	end
+	local target = mission.BaseTarget * (mission.Growth ^ level) + mission.Step * level
+	return math.max(1, math.min(1e9, math.floor(target)))
+end
+
+function Config.GetMissionReward(key, level)
+	local mission = Config.Missions[key]
+	if not mission then
+		return 0
+	end
+	return math.max(1, math.min(1e9, math.floor(mission.BaseReward * (mission.RewardGrowth ^ level))))
+end
+
+function Config.GetWalkSpeed(speed, rebirths, speedLevel, hasDoubleSpeed)
+	local base = Config.BaseWalkSpeed + Config.SpeedCurve * math.log10(1 + speed / 10)
+	local multiplier = (1 + rebirths * Config.RebirthSpeedBonus)
+		* (1 + speedLevel * Config.Upgrades.Speed.Effect)
+	if hasDoubleSpeed then
+		multiplier *= 2
+	end
+	return math.clamp(base * multiplier, Config.BaseWalkSpeed, Config.MaxWalkSpeed)
+end
+
+function Config.GetComboMultiplier(combo)
+	return 1 + math.min(combo or 0, Config.ComboMax) * Config.ComboCoinBonus
+end
+
+return Config
+]]></string>
+        </Properties>
+      </Item>
+    </Item>
+    <Item class="Folder" referent="3">
+      <Properties>
+        <string name="Name">Remotes</string>
+      </Properties>
+      <Item class="RemoteEvent" referent="4">
+        <Properties>
+          <string name="Name">AddSpeed</string>
+        </Properties>
+      </Item>
+      <Item class="RemoteEvent" referent="5">
+        <Properties>
+          <string name="Name">BuyUpgrade</string>
+        </Properties>
+      </Item>
+      <Item class="RemoteEvent" referent="6">
+        <Properties>
+          <string name="Name">FX</string>
+        </Properties>
+      </Item>
+      <Item class="RemoteFunction" referent="7">
+        <Properties>
+          <string name="Name">GetState</string>
+        </Properties>
+      </Item>
+      <Item class="RemoteEvent" referent="8">
+        <Properties>
+          <string name="Name">Leaderboard</string>
+        </Properties>
+      </Item>
+      <Item class="RemoteEvent" referent="9">
+        <Properties>
+          <string name="Name">Notify</string>
+        </Properties>
+      </Item>
+      <Item class="RemoteEvent" referent="10">
+        <Properties>
+          <string name="Name">Rebirth</string>
+        </Properties>
+      </Item>
+      <Item class="RemoteEvent" referent="11">
+        <Properties>
+          <string name="Name">SyncState</string>
+        </Properties>
+      </Item>
+    </Item>
+  </Item>
+  <Item class="ServerScriptService" referent="12">
+    <Properties>
+      <string name="Name">ServerScriptService</string>
+    </Properties>
+    <Item class="ModuleScript" referent="13">
+      <Properties>
+        <string name="Name">DataService</string>
+        <string name="Source"><![CDATA[-- Guardado y carga de progreso con DataStore.
+-- Si el place no esta publicado, usa memoria para poder probar en Studio.
+local DataStoreService = game:GetService("DataStoreService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
+
+local STORE_NAME = "SpeedEscape_v2"
+local cache = {}
+local memory = {}
+local store = nil
+
+do
+	local ok, result = pcall(function()
+		return DataStoreService:GetDataStore(STORE_NAME)
+	end)
+	if ok then
+		store = result
+	else
+		warn("[DataService] DataStore no disponible: " .. tostring(result))
+		warn("[DataService] El progreso se guardara solo en memoria durante esta sesion.")
+	end
+end
+
+local function newUpgrades()
+	local upgrades = {}
+	for key in pairs(Config.Upgrades) do
+		upgrades[key] = 0
+	end
+	return upgrades
+end
+
+local function newMissions()
+	local missions = {}
+	for key in pairs(Config.Missions) do
+		missions[key] = { Level = 0, Progress = 0 }
+	end
+	return missions
+end
+
+local function newData()
+	return {
+		Speed = 0,
+		Coins = 0,
+		Rebirths = 0,
+		Checkpoint = 0,
+		Best = 0,
+		DailyStreak = 0,
+		LastDailyClaim = "",
+		HeistCores = 0,
+		Upgrades = newUpgrades(),
+		Missions = newMissions(),
+	}
+end
+
+local function toNumber(value, fallback)
+	if type(value) == "number" and value == value and value >= 0 then
+		return value
+	end
+	return fallback
+end
+
+local function sanitize(raw)
+	local data = newData()
+	if type(raw) ~= "table" then
+		return data
+	end
+	for _, key in ipairs({ "Speed", "Coins", "Rebirths", "Checkpoint", "Best" }) do
+		data[key] = math.floor(toNumber(raw[key], 0))
+	end
+	if type(raw.DailyStreak) == "number" then
+		data.DailyStreak = math.clamp(math.floor(raw.DailyStreak), 0, 7)
+	end
+	if type(raw.LastDailyClaim) == "string" then
+		data.LastDailyClaim = raw.LastDailyClaim
+	end
+	if type(raw.HeistCores) == "number" then
+		data.HeistCores = math.clamp(math.floor(raw.HeistCores), 0, Config.HeistCoreCount)
+	end
+	if type(raw.Upgrades) == "table" then
+		for key, upgrade in pairs(Config.Upgrades) do
+			local level = toNumber(raw.Upgrades[key], 0)
+			data.Upgrades[key] = math.clamp(math.floor(level), 0, upgrade.MaxLevel)
+		end
+	end
+	if type(raw.Missions) == "table" then
+		for key in pairs(Config.Missions) do
+			local saved = raw.Missions[key]
+			if type(saved) == "table" then
+				data.Missions[key].Level = math.clamp(math.floor(toNumber(saved.Level, 0)), 0, 100000)
+				data.Missions[key].Progress = math.max(0, math.floor(toNumber(saved.Progress, 0)))
+			end
+		end
+	end
+	data.Best = math.max(data.Best, data.Speed)
+	return data
+end
+
+local DataService = {}
+
+function DataService.Load(player)
+	local key = "player_" .. player.UserId
+	local raw
+	if store then
+		local ok, result = pcall(function()
+			return store:GetAsync(key)
+		end)
+		if ok then
+			raw = result
+		else
+			warn("[DataService] No se pudo cargar a " .. player.Name .. ": " .. tostring(result))
+		end
+	else
+		raw = memory[key]
+	end
+	local data = sanitize(raw)
+	cache[player] = data
+	return data
+end
+
+function DataService.Get(player)
+	return cache[player]
+end
+
+function DataService.Save(player)
+	local data = cache[player]
+	if not data then
+		return false
+	end
+	local key = "player_" .. player.UserId
+	if not store then
+		memory[key] = sanitize(data)
+		return true
+	end
+	for attempt = 1, 3 do
+		local ok, err = pcall(function()
+			store:SetAsync(key, data)
+		end)
+		if ok then
+			return true
+		end
+		warn("[DataService] Guardado fallido (" .. attempt .. "/3) para " .. player.Name .. ": " .. tostring(err))
+		task.wait(1)
+	end
+	return false
+end
+
+function DataService.Release(player)
+	cache[player] = nil
+end
+
+return DataService
+]]></string>
+      </Properties>
+    </Item>
+    <Item class="Script" referent="14">
+      <Properties>
+        <string name="Name">Main</string>
+        <token name="RunContext">0</token>
+        <string name="Source"><![CDATA[-- Script principal del servidor: estado, remotes, checkpoints, tienda, misiones y prestige.
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local MarketplaceService = game:GetService("MarketplaceService")
+
+local DataService = require(script.Parent:WaitForChild("DataService"))
+local MapBuilder = require(script.Parent:WaitForChild("MapBuilder"))
+local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
+
+local Remotes = ReplicatedStorage:FindFirstChild("Remotes")
+if not Remotes then
+	Remotes = Instance.new("Folder")
+	Remotes.Name = "Remotes"
+	Remotes.Parent = ReplicatedStorage
+end
+
+local function ensureRemote(className, name)
+	local remote = Remotes:FindFirstChild(name)
+	if not remote then
+		remote = Instance.new(className)
+		remote.Name = name
+		remote.Parent = Remotes
+	end
+	return remote
+end
+
+local AddSpeed = ensureRemote("RemoteEvent", "AddSpeed")
+local Rebirth = ensureRemote("RemoteEvent", "Rebirth")
+local BuyUpgrade = ensureRemote("RemoteEvent", "BuyUpgrade")
+local SyncState = ensureRemote("RemoteEvent", "SyncState")
+local Notify = ensureRemote("RemoteEvent", "Notify")
+local GetState = ensureRemote("RemoteFunction", "GetState")
+local FX = ensureRemote("RemoteEvent", "FX")
+local Leaderboard = ensureRemote("RemoteEvent", "Leaderboard")
+local ClaimDaily = ensureRemote("RemoteEvent", "ClaimDaily")
+
+local mapData = MapBuilder.Build()
+local spawnLocation = mapData.spawn
+local checkpoints = mapData.checkpoints
+local coins = mapData.coins
+
+local heistCores = {}
+for index = 1, Config.HeistCoreCount do
+	local core = Instance.new("Part")
+	core.Name = "HeistCore_" .. index
+	core.Shape = Enum.PartType.Ball
+	core.Size = Vector3.new(5, 5, 5)
+	core.Position = Vector3.new(0, 6, -math.floor(Config.TrackLength * (index / (Config.HeistCoreCount + 1))))
+	core.Material = Enum.Material.Neon
+	core.Color = Color3.fromRGB(255, 215, 60)
+	core.CanCollide = false
+	core.CanTouch = true
+	core.Parent = workspace
+	local light = Instance.new("PointLight")
+	light.Color = core.Color
+	light.Brightness = 3
+	light.Range = 18
+	light.Parent = core
+	local particles = Instance.new("ParticleEmitter")
+	particles.Rate = 8
+	particles.Lifetime = NumberRange.new(0.7, 1.3)
+	particles.Speed = NumberRange.new(0.4, 1.2)
+	particles.SpreadAngle = Vector2.new(360, 360)
+	particles.Size = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.22),
+		NumberSequenceKeypoint.new(1, 0),
+	})
+	particles.LightEmission = 1
+	particles.Color = ColorSequence.new(core.Color)
+	particles.Parent = core
+	local label = Instance.new("BillboardGui")
+	label.Size = UDim2.fromOffset(150, 36)
+	label.StudsOffset = Vector3.new(0, 4.5, 0)
+	label.AlwaysOnTop = false
+	label.Parent = core
+	local text = Instance.new("TextLabel")
+	text.Size = UDim2.fromScale(1, 1)
+	text.BackgroundTransparency = 1
+	text.Text = "CORE " .. index
+	text.TextColor3 = core.Color
+	text.TextStrokeTransparency = 0.2
+	text.Font = Enum.Font.GothamBlack
+	text.TextScaled = true
+	text.Parent = label
+	heistCores[index] = core
+end
+
+task.spawn(function()
+	while true do
+		task.wait(1 / 30)
+		for _, core in ipairs(heistCores) do
+			if core and core.Parent then
+				core.CFrame *= CFrame.Angles(0, 0.035, 0)
+			end
+		end
+	end
+end)
+
+local passCache = {}
+local keyBuckets = {}
+local comboState = {}
+local boostCooldowns = {}
+local obstacleCooldowns = {}
+local finishCooldowns = {}
+local notify
+local updateBest
+
+local function snapshot(data)
+	local upgrades = {}
+	for key in pairs(Config.Upgrades) do
+		upgrades[key] = data.Upgrades[key] or 0
+	end
+	local missions = {}
+	for key, mission in pairs(data.Missions) do
+		missions[key] = { Level = mission.Level, Progress = mission.Progress }
+	end
+	return {
+		Speed = data.Speed,
+		Coins = data.Coins,
+		Rebirths = data.Rebirths,
+		Checkpoint = data.Checkpoint,
+		Best = data.Best or 0,
+		DailyStreak = data.DailyStreak or 0,
+		LastDailyClaim = data.LastDailyClaim or "",
+		HeistCores = data.HeistCores or 0,
+		HeistGoal = Config.HeistCoreCount,
+		Upgrades = upgrades,
+		Missions = missions,
+	}
+end
+
+local function utcDay(offset)
+	return os.date("!%Y-%m-%d", os.time() + (offset or 0))
+end
+
+local function claimDailyReward(player)
+	local data = DataService.Get(player)
+	if not data then
+		return
+	end
+	local today = utcDay()
+	if data.LastDailyClaim == today then
+		notify(player, "Ya reclamaste tu bono diario. Vuelve mañana.")
+		return
+	end
+	local yesterday = utcDay(-86400)
+	if data.LastDailyClaim ~= yesterday then
+		data.DailyStreak = 0
+	end
+	data.DailyStreak = math.clamp((data.DailyStreak or 0) + 1, 1, #Config.DailyRewards)
+	data.LastDailyClaim = today
+	local reward = Config.DailyRewards[data.DailyStreak] or Config.DailyRewards[#Config.DailyRewards]
+	local speedReward = Config.DailySpeedReward * data.DailyStreak
+	data.Coins += reward
+	data.Speed += speedReward
+	updateBest(data)
+	notify(player, string.format("BONO DIARIO %d/7: +%d monedas y +%d velocidad.", data.DailyStreak, reward, speedReward))
+	FX:FireClient(player, "Daily")
+	SyncState:FireClient(player, snapshot(data))
+end
+
+notify = function(player, message)
+	Notify:FireClient(player, message)
+end
+
+updateBest = function(data)
+	if data.Speed > (data.Best or 0) then
+		data.Best = data.Speed
+	end
+end
+
+local function currentCombo(player)
+	local state = comboState[player]
+	if not state then
+		return 0
+	end
+	if os.clock() - state.Last > Config.ComboWindow then
+		return 0
+	end
+	return state.Count
+end
+
+local function hasPass(player, key)
+	local id = Config.PassIds[key]
+	if not id or id == 0 then
+		return false
+	end
+	local cached = passCache[player]
+	if cached and cached[key] ~= nil then
+		return cached[key]
+	end
+	local ok, owns = pcall(function()
+		return MarketplaceService:UserOwnsGamePassAsync(player.UserId, id)
+	end)
+	owns = ok and owns == true
+	passCache[player] = cached or {}
+	passCache[player][key] = owns
+	return owns
+end
+
+local function passOwned(player, key)
+	local cached = passCache[player]
+	return cached ~= nil and cached[key] == true
+end
+
+local function coinMultiplier(player, data)
+	local multiplier = 1 + data.Rebirths * Config.RebirthCoinBonus
+	multiplier *= 1 + data.Upgrades.Coins * Config.Upgrades.Coins.Effect
+	if passOwned(player, "DoubleCoins") then
+		multiplier *= 2
+	end
+	return multiplier
+end
+
+local function applyHumanoid(player, data)
+	local character = player.Character
+	if not character then
+		return
+	end
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	if not humanoid then
+		return
+	end
+	humanoid.WalkSpeed = Config.GetWalkSpeed(
+		data.Speed,
+		data.Rebirths,
+		data.Upgrades.Speed,
+		passOwned(player, "DoubleSpeed")
+	)
+	humanoid.UseJumpPower = true
+	humanoid.JumpPower = 50 + data.Upgrades.Jump * Config.Upgrades.Jump.Effect
+end
+
+local function respawnCFrame(index)
+	if index and index > 0 and checkpoints[index] then
+		return checkpoints[index].CFrame + Vector3.new(0, 6, 0)
+	end
+	return spawnLocation.CFrame + Vector3.new(0, 5, 0)
+end
+
+local function teleportToCheckpoint(player)
+	local data = DataService.Get(player)
+	if not data then
+		return
+	end
+	local character = player.Character
+	if not character then
+		return
+	end
+	local root = character:FindFirstChild("HumanoidRootPart")
+	if not root then
+		return
+	end
+	local target = respawnCFrame(data.Checkpoint)
+	character:PivotTo(CFrame.lookAt(target.Position, target.Position + Vector3.new(0, 0, -1)))
+	root.AssemblyLinearVelocity = Vector3.zero
+end
+
+local function setupCharacter(player, character)
+	task.wait(0.15)
+	if player.Character ~= character then
+		return
+	end
+	teleportToCheckpoint(player)
+end
+
+local function checkMissions(player, data, key)
+	local mission = data.Missions[key]
+	local definition = Config.Missions[key]
+	if not mission or not definition then
+		return
+	end
+	local completed = false
+	for _ = 1, 25 do
+		local target = Config.GetMissionTarget(key, mission.Level)
+		if mission.Progress < target then
+			break
+		end
+		local reward = Config.GetMissionReward(key, mission.Level)
+		mission.Progress -= target
+		mission.Level += 1
+		data.Coins += reward
+		completed = true
+		notify(player, string.format("MISION: %s %d. +%d monedas.", definition.Label, mission.Level, reward))
+		FX:FireClient(player, "Mision")
+	end
+	if completed then
+		SyncState:FireClient(player, snapshot(data))
+	end
+end
+
+local function setupLeaderstats(player, data)
+	local folder = Instance.new("Folder")
+	folder.Name = "leaderstats"
+
+	local speed = Instance.new("IntValue")
+	speed.Name = "Speed"
+	speed.Value = math.floor(data.Speed)
+
+	local coinsValue = Instance.new("IntValue")
+	coinsValue.Name = "Coins"
+	coinsValue.Value = math.floor(data.Coins)
+
+	local rebirths = Instance.new("IntValue")
+	rebirths.Name = "Rebirths"
+	rebirths.Value = data.Rebirths
+
+	local best = Instance.new("IntValue")
+	best.Name = "Best"
+	best.Value = math.floor(data.Best or 0)
+
+	speed.Parent = folder
+	coinsValue.Parent = folder
+	rebirths.Parent = folder
+	best.Parent = folder
+	folder.Parent = player
+end
+
+local function onPlayerAdded(player)
+	if player:GetAttribute("SpeedEscapeLoaded") then
+		return
+	end
+	player:SetAttribute("SpeedEscapeLoaded", true)
+
+	local data = DataService.Load(player)
+	if not player.Parent then
+		DataService.Release(player)
+		return
+	end
+
+	updateBest(data)
+	setupLeaderstats(player, data)
+	SyncState:FireClient(player, snapshot(data))
+	notify(player, "Presiona teclas para +1 velocidad. Corre con WASD.")
+
+	task.spawn(function()
+		hasPass(player, "DoubleSpeed")
+		hasPass(player, "DoubleCoins")
+	end)
+
+	player.CharacterAdded:Connect(function(character)
+		task.spawn(setupCharacter, player, character)
+	end)
+	if player.Character then
+		task.spawn(setupCharacter, player, player.Character)
+	end
+end
+
+ClaimDaily.OnServerEvent:Connect(claimDailyReward)
+
+Players.PlayerAdded:Connect(function(player)
+	task.spawn(onPlayerAdded, player)
+end)
+
+for _, player in ipairs(Players:GetPlayers()) do
+	task.spawn(onPlayerAdded, player)
+end
+
+AddSpeed.OnServerEvent:Connect(function(player)
+	local data = DataService.Get(player)
+	if not data then
+		return
+	end
+	local now = os.clock()
+	local bucket = keyBuckets[player]
+	if not bucket then
+		bucket = { tokens = Config.KeyRateLimit, last = now }
+		keyBuckets[player] = bucket
+	end
+	bucket.tokens = math.min(Config.KeyRateLimit, bucket.tokens + (now - bucket.last) * Config.KeyRateLimit)
+	bucket.last = now
+	if bucket.tokens < 1 then
+		return
+	end
+	bucket.tokens -= 1
+
+	local combo = comboState[player]
+	if not combo then
+		combo = { Count = 0, Last = 0 }
+		comboState[player] = combo
+	end
+	if now - combo.Last <= Config.ComboWindow then
+		combo.Count = math.min(Config.ComboMax, combo.Count + 1)
+	else
+		combo.Count = 1
+	end
+	combo.Last = now
+
+	data.Speed += 1
+	updateBest(data)
+	data.Missions.Keys.Progress += 1
+	checkMissions(player, data, "Keys")
+end)
+
+GetState.OnServerInvoke = function(player)
+	local data = DataService.Get(player)
+	if not data then
+		return nil
+	end
+	return snapshot(data)
+end
+
+Rebirth.OnServerEvent:Connect(function(player)
+	local data = DataService.Get(player)
+	if not data then
+		return
+	end
+	if data.Speed < Config.RebirthRequirement then
+		notify(player, string.format(
+			"Necesitas %d de velocidad para renacer. Tienes %d.",
+			Config.RebirthRequirement,
+			math.floor(data.Speed)
+		))
+		return
+	end
+	data.Rebirths += 1
+	data.Speed = 0
+	data.Checkpoint = 0
+	data.HeistCores = 0
+	local combo = comboState[player]
+	if combo then
+		combo.Count = 0
+	end
+	teleportToCheckpoint(player)
+	SyncState:FireClient(player, snapshot(data))
+	FX:FireClient(player, "Renacer")
+	notify(player, string.format(
+		"RENACIMIENTO %d. Bonus: +%d%% velocidad y monedas.",
+		data.Rebirths,
+		math.floor(data.Rebirths * Config.RebirthSpeedBonus * 100)
+	))
+end)
+
+BuyUpgrade.OnServerEvent:Connect(function(player, upgradeKey)
+	if type(upgradeKey) ~= "string" then
+		return
+	end
+	local data = DataService.Get(player)
+	if not data then
+		return
+	end
+	local upgrade = Config.Upgrades[upgradeKey]
+	if not upgrade then
+		return
+	end
+	local level = data.Upgrades[upgradeKey] or 0
+	if level >= upgrade.MaxLevel then
+		notify(player, "Esa mejora ya esta al maximo.")
+		return
+	end
+	local cost = Config.GetUpgradeCost(upgradeKey, level)
+	if data.Coins < cost then
+		notify(player, string.format("Te faltan %d monedas.", cost - data.Coins))
+		return
+	end
+	data.Coins -= cost
+	data.Upgrades[upgradeKey] = level + 1
+	SyncState:FireClient(player, snapshot(data))
+	notify(player, string.format("%s al nivel %d.", upgrade.Label, level + 1))
+end)
+
+for index, part in ipairs(checkpoints) do
+	part.Touched:Connect(function(hit)
+		local player = Players:GetPlayerFromCharacter(hit.Parent)
+		if not player then
+			return
+		end
+		local data = DataService.Get(player)
+		if not data or index <= data.Checkpoint then
+			return
+		end
+		data.Checkpoint = index
+		data.Speed += Config.CheckpointSpeedBonus
+		updateBest(data)
+		local reward = math.floor(
+			Config.CheckpointCoinBase
+				* index
+				* coinMultiplier(player, data)
+				* Config.GetComboMultiplier(currentCombo(player))
+		)
+		data.Coins += reward
+		data.Missions.Checkpoint.Progress += 1
+		notify(player, string.format(
+			"Checkpoint %d/%d. +%d monedas, +%d velocidad.",
+			index,
+			Config.CheckpointCount,
+			reward,
+			Config.CheckpointSpeedBonus
+		))
+		FX:FireClient(player, "Checkpoint", index)
+		checkMissions(player, data, "Checkpoint")
+		SyncState:FireClient(player, snapshot(data))
+	end)
+end
+
+for index, core in ipairs(heistCores) do
+	core.Touched:Connect(function(hit)
+		local player = Players:GetPlayerFromCharacter(hit.Parent)
+		if not player then
+			return
+		end
+		local data = DataService.Get(player)
+		if not data or index ~= (data.HeistCores or 0) + 1 then
+			return
+		end
+		data.HeistCores = index
+		local reward = Config.HeistCoreReward * index
+		data.Coins += reward
+		notify(player, string.format("NUCLEO %d/%d asegurado. +%d monedas. Extrae en la meta.", index, Config.HeistCoreCount, reward))
+		FX:FireClient(player, "HeistCore")
+		SyncState:FireClient(player, snapshot(data))
+	end)
+end
+
+local function collectCoin(player, data, entry)
+	local part = entry.Part
+	if not part or not part.Parent or not part.CanTouch then
+		return
+	end
+	part.CanTouch = false
+	part.Transparency = 1
+	local multiplier = coinMultiplier(player, data) * Config.GetComboMultiplier(currentCombo(player))
+	local amount = math.max(1, math.floor(entry.Value * multiplier))
+	data.Coins += amount
+	data.Missions.Coins.Progress += amount
+	FX:FireClient(player, "Moneda")
+	checkMissions(player, data, "Coins")
+	SyncState:FireClient(player, snapshot(data))
+	task.delay(Config.CoinRespawn, function()
+		if part.Parent then
+			part.Transparency = 0
+			part.CanTouch = true
+		end
+	end)
+end
+
+for _, entry in ipairs(coins) do
+	entry.Part.Touched:Connect(function(hit)
+		local player = Players:GetPlayerFromCharacter(hit.Parent)
+		if not player then
+			return
+		end
+		local data = DataService.Get(player)
+		if not data then
+			return
+		end
+		collectCoin(player, data, entry)
+	end)
+end
+
+-- Iman: recoge monedas cercanas automaticamente.
+task.spawn(function()
+	while true do
+		task.wait(0.25)
+		for _, player in ipairs(Players:GetPlayers()) do
+			local data = DataService.Get(player)
+			local level = data and data.Upgrades.Magnet or 0
+			if level > 0 then
+				local character = player.Character
+				local root = character and character:FindFirstChild("HumanoidRootPart")
+				if root then
+					local radius = Config.MagnetBase + level * Config.Upgrades.Magnet.Effect
+					for _, entry in ipairs(coins) do
+						if entry.Part.CanTouch and (root.Position - entry.Part.Position).Magnitude <= radius then
+							collectCoin(player, data, entry)
+						end
+					end
+				end
+			end
+		end
+	end
+end)
+
+for _, pad in ipairs(mapData.boostPads) do
+	pad.Touched:Connect(function(hit)
+		local player = Players:GetPlayerFromCharacter(hit.Parent)
+		if not player then
+			return
+		end
+		local data = DataService.Get(player)
+		if not data then
+			return
+		end
+		local now = os.clock()
+		if (boostCooldowns[player] or 0) > now then
+			return
+		end
+		boostCooldowns[player] = now + Config.BoostCooldown
+		data.Speed += Config.BoostAmount
+		updateBest(data)
+		notify(player, string.format("BOOST. +%d velocidad.", Config.BoostAmount))
+		FX:FireClient(player, "Boost")
+	end)
+end
+
+local function connectHazard(part)
+	part.Touched:Connect(function(hit)
+		local player = Players:GetPlayerFromCharacter(hit.Parent)
+		if not player then
+			return
+		end
+		local data = DataService.Get(player)
+		if not data then
+			return
+		end
+		local now = os.clock()
+		if (obstacleCooldowns[player] or 0) > now then
+			return
+		end
+		obstacleCooldowns[player] = now + Config.ObstacleCooldown
+		local lost = math.floor(data.Speed * Config.ObstaclePenalty)
+		if lost <= 0 then
+			return
+		end
+		data.Speed = math.max(0, data.Speed - lost)
+		notify(player, string.format("CHOQUE. -%d velocidad.", lost))
+		FX:FireClient(player, "Choque")
+	end)
+end
+
+for _, obstacle in ipairs(mapData.obstacles) do
+	connectHazard(obstacle)
+end
+for _, sweeper in ipairs(mapData.sweepers) do
+	connectHazard(sweeper.Part)
+end
+
+mapData.finishTrigger.Touched:Connect(function(hit)
+	local player = Players:GetPlayerFromCharacter(hit.Parent)
+	if not player then
+		return
+	end
+	local data = DataService.Get(player)
+	if not data then
+		return
+	end
+	if (data.HeistCores or 0) < Config.HeistCoreCount then
+		notify(player, string.format("Te faltan %d nucleos para extraer.", Config.HeistCoreCount - data.HeistCores))
+		return
+	end
+	local now = os.clock()
+	if (finishCooldowns[player] or 0) > now then
+		return
+	end
+	finishCooldowns[player] = now + 3
+	local reward = math.floor(
+		(Config.FinishReward + Config.HeistCompletionReward)
+			* coinMultiplier(player, data)
+			* Config.GetComboMultiplier(currentCombo(player))
+	)
+	data.Coins += reward
+	data.Checkpoint = 0
+	data.HeistCores = 0
+	local combo = comboState[player]
+	if combo then
+		combo.Count = 0
+	end
+	teleportToCheckpoint(player)
+	notify(player, string.format("META. +%d monedas. Vuelve a correr.", reward))
+	FX:FireClient(player, "Meta")
+	SyncState:FireClient(player, snapshot(data))
+end)
+
+mapData.voidPlane.Touched:Connect(function(hit)
+	local player = Players:GetPlayerFromCharacter(hit.Parent)
+	if not player then
+		return
+	end
+	teleportToCheckpoint(player)
+end)
+
+-- Ranking de la partida (los mejores records de los jugadores conectados).
+local function sessionLeaderboard()
+	local list = {}
+	for _, player in ipairs(Players:GetPlayers()) do
+		local data = DataService.Get(player)
+		if data then
+			table.insert(list, {
+				Name = player.Name,
+				DisplayName = player.DisplayName,
+				Value = math.floor(data.Best or 0),
+			})
+		end
+	end
+	table.sort(list, function(a, b)
+		if a.Value == b.Value then
+			return a.Name < b.Name
+		end
+		return a.Value > b.Value
+	end)
+	local top = {}
+	for index = 1, math.min(#list, 10) do
+		top[index] = list[index]
+	end
+	return top
+end
+
+task.spawn(function()
+	while true do
+		Leaderboard:FireAllClients(sessionLeaderboard())
+		task.wait(5)
+	end
+end)
+
+-- Auto-velocidad pasiva.
+task.spawn(function()
+	while true do
+		task.wait(1)
+		for _, player in ipairs(Players:GetPlayers()) do
+			local data = DataService.Get(player)
+			if data then
+				local level = data.Upgrades.Auto or 0
+				if level > 0 then
+					data.Speed += level * Config.Upgrades.Auto.Effect
+					updateBest(data)
+				end
+			end
+		end
+	end
+end)
+
+-- Sincronizacion de stats, velocidad fisica y combo.
+task.spawn(function()
+	local syncTick = 0
+	while true do
+		task.wait(0.1)
+		syncTick += 1
+		local now = os.clock()
+		for _, player in ipairs(Players:GetPlayers()) do
+			local data = DataService.Get(player)
+			if data then
+				updateBest(data)
+				local combo = comboState[player]
+				if combo and combo.Count > 0 and now - combo.Last > Config.ComboWindow then
+					combo.Count = 0
+				end
+				local stats = player:FindFirstChild("leaderstats")
+				if stats then
+					stats.Speed.Value = math.floor(data.Speed)
+					stats.Coins.Value = math.floor(data.Coins)
+					stats.Rebirths.Value = data.Rebirths
+					stats.Best.Value = math.floor(data.Best or 0)
+				end
+				applyHumanoid(player, data)
+				if syncTick % 20 == 0 then
+					SyncState:FireClient(player, snapshot(data))
+				end
+			end
+		end
+	end
+end)
+
+task.spawn(function()
+	while true do
+		task.wait(60)
+		for _, player in ipairs(Players:GetPlayers()) do
+			task.spawn(DataService.Save, player)
+		end
+	end
+end)
+
+Players.PlayerRemoving:Connect(function(player)
+	DataService.Save(player)
+	DataService.Release(player)
+	passCache[player] = nil
+	keyBuckets[player] = nil
+	comboState[player] = nil
+	boostCooldowns[player] = nil
+	obstacleCooldowns[player] = nil
+	finishCooldowns[player] = nil
+end)
+
+game:BindToClose(function()
+	for _, player in ipairs(Players:GetPlayers()) do
+		DataService.Save(player)
+	end
+	task.wait(1)
+end)
+]]></string>
+      </Properties>
+    </Item>
+    <Item class="ModuleScript" referent="15">
+      <Properties>
+        <string name="Name">MapBuilder</string>
+        <string name="Source"><![CDATA[-- Construye la pista completa por codigo al iniciar el servidor.
+local Workspace = game:GetService("Workspace")
+local Lighting = game:GetService("Lighting")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
+
+local MapBuilder = {}
+
+local DANGER_COLOR = Color3.fromRGB(255, 70, 80)
+local COIN_COLOR = Color3.fromRGB(255, 210, 50)
+local BOOST_COLOR = Color3.fromRGB(255, 220, 70)
+local FINISH_COLOR = Color3.fromRGB(80, 220, 255)
+
+local function makePart(props)
+	local part = Instance.new("Part")
+	part.Anchored = true
+	part.TopSurface = Enum.SurfaceType.Smooth
+	part.BottomSurface = Enum.SurfaceType.Smooth
+	part.Material = Enum.Material.SmoothPlastic
+	part.CanCollide = true
+	for key, value in pairs(props) do
+		if key ~= "Parent" then
+			part[key] = value
+		end
+	end
+	part.Parent = props.Parent
+	return part
+end
+
+local function ensureEffect(className, name)
+	local effect = Lighting:FindFirstChild(name)
+	if not effect then
+		effect = Instance.new(className)
+		effect.Name = name
+		effect.Parent = Lighting
+	end
+	return effect
+end
+
+local function clearOld()
+	local old = Workspace:FindFirstChild("SpeedEscapeMap")
+	if old then
+		old:Destroy()
+	end
+	local oldSpawn = Workspace:FindFirstChild("SpeedEscapeSpawn")
+	if oldSpawn then
+		oldSpawn:Destroy()
+	end
+	local baseplate = Workspace:FindFirstChild("Baseplate")
+	if baseplate and baseplate:IsA("BasePart") then
+		baseplate:Destroy()
+	end
+	local defaultSpawn = Workspace:FindFirstChild("SpawnLocation")
+	if defaultSpawn and defaultSpawn:IsA("SpawnLocation") then
+		defaultSpawn:Destroy()
+	end
+end
+
+local function addBillboard(adornee, text, color, offsetY, width, height)
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = "Label"
+	billboard.Adornee = adornee
+	billboard.Size = UDim2.fromOffset(width or 260, height or 54)
+	billboard.StudsOffset = Vector3.new(0, offsetY or 7, 0)
+	billboard.AlwaysOnTop = false
+	billboard.MaxDistance = 900
+	billboard.Parent = adornee
+
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.fromScale(1, 1)
+	label.BackgroundTransparency = 1
+	label.Text = text
+	label.TextColor3 = color
+	label.TextStrokeTransparency = 0.3
+	label.TextStrokeColor3 = Color3.new(0, 0, 0)
+	label.Font = Enum.Font.GothamBlack
+	label.TextScaled = true
+	label.Parent = billboard
+end
+
+local function zoneAtZ(z)
+	local index = math.clamp(math.floor((-z) / Config.ZoneLength) + 1, 1, #Config.Zones)
+	return Config.Zones[index], index
+end
+
+local function isClear(z, list, minDistance)
+	for _, other in ipairs(list) do
+		if math.abs(z - other) < minDistance then
+			return false
+		end
+	end
+	return true
+end
+
+function MapBuilder.Build()
+	clearOld()
+
+	local map = Instance.new("Folder")
+	map.Name = "SpeedEscapeMap"
+
+	local track = Instance.new("Folder")
+	track.Name = "Track"
+	track.Parent = map
+
+	local hazards = Instance.new("Folder")
+	hazards.Name = "Hazards"
+	hazards.Parent = map
+
+	local checkpointsFolder = Instance.new("Folder")
+	checkpointsFolder.Name = "Checkpoints"
+	checkpointsFolder.Parent = map
+
+	local effects = Instance.new("Folder")
+	effects.Name = "Effects"
+	effects.Parent = map
+
+	local coinsFolder = Instance.new("Folder")
+	coinsFolder.Name = "Coins"
+	coinsFolder.Parent = map
+
+	local decor = Instance.new("Folder")
+	decor.Name = "Decor"
+	decor.Parent = map
+
+	-- Spawn directo en Workspace (los SpawnLocation dentro de carpetas no siempre funcionan).
+	local spawn = Instance.new("SpawnLocation")
+	spawn.Name = "SpeedEscapeSpawn"
+	spawn.Anchored = true
+	spawn.Size = Vector3.new(34, 1, 40)
+	spawn.CFrame = CFrame.new(0, 0.5, 20)
+	spawn.Neutral = true
+	spawn.Duration = 0
+	spawn.Material = Enum.Material.SmoothPlastic
+	spawn.Color = Color3.fromRGB(40, 52, 90)
+	spawn.TopSurface = Enum.SurfaceType.Smooth
+	spawn.Parent = Workspace
+
+	-- Suelo por zonas.
+	local segmentLength = 20
+	local segmentCount = math.ceil(Config.TrackLength / segmentLength)
+	for i = 0, segmentCount - 1 do
+		local z = -(i * segmentLength) - segmentLength / 2
+		local zone = zoneAtZ(z)
+		makePart({
+			Name = "Floor_" .. i,
+			Size = Vector3.new(Config.TrackWidth, 2, segmentLength),
+			CFrame = CFrame.new(0, 0, z),
+			Color = (i % 2 == 0) and zone.FloorA or zone.FloorB,
+			Parent = track,
+		})
+	end
+
+	-- Rieles neon en los bordes de cada zona.
+	for zoneIndex = 1, #Config.Zones do
+		local zone = Config.Zones[zoneIndex]
+		local centerZ = -((zoneIndex - 1) * Config.ZoneLength + Config.ZoneLength / 2)
+		for _, x in ipairs({ -Config.TrackWidth / 2 - 0.8, Config.TrackWidth / 2 + 0.8 }) do
+			makePart({
+				Name = "Rail",
+				Size = Vector3.new(1.2, 0.5, Config.ZoneLength),
+				CFrame = CFrame.new(x, 1.4, centerZ),
+				Color = zone.Accent,
+				Material = Enum.Material.Neon,
+				CanCollide = false,
+				Parent = decor,
+			})
+		end
+		-- Separadores de carril: ayudan a leer la velocidad y dan ritmo visual.
+		for _, x in ipairs({ -11, 0, 11 }) do
+			makePart({
+				Name = "LaneGuide",
+				Size = Vector3.new(0.18, 0.08, Config.ZoneLength),
+				CFrame = CFrame.new(x, 1.08, centerZ),
+				Color = zone.Accent,
+				Material = Enum.Material.Neon,
+				Transparency = 0.72,
+				CanCollide = false,
+				Parent = decor,
+			})
+		end
+	end
+
+	-- Skyline lateral para evitar tramos vacios y reforzar la identidad de cada zona.
+	for i = 0, math.floor(Config.TrackLength / 180) do
+		local z = -(i * 180) - 90
+		local zone = zoneAtZ(z)
+		local height = 7 + ((i * 17) % 15)
+		for sideIndex, x in ipairs({ -34, 34 }) do
+			local building = makePart({
+				Name = "NeonTower",
+				Size = Vector3.new(7, height, 12),
+				CFrame = CFrame.new(x, height / 2, z + (sideIndex == 2 and 22 or -22)),
+				Color = zone.FloorA:Lerp(Color3.fromRGB(5, 7, 18), 0.45),
+				Material = Enum.Material.Metal,
+				CanCollide = false,
+				Parent = decor,
+			})
+			makePart({
+				Name = "TowerGlow",
+				Size = Vector3.new(0.35, math.max(3, height - 2), 0.35),
+				CFrame = building.CFrame * CFrame.new(sideIndex == 1 and 3.4 or -3.4, 0, -6.1),
+				Color = zone.Accent,
+				Material = Enum.Material.Neon,
+				CanCollide = false,
+				Parent = decor,
+			})
+		end
+	end
+
+	-- Titulo en la salida.
+	local startLeft = makePart({
+		Name = "StartPillar",
+		Size = Vector3.new(3, 18, 3),
+		CFrame = CFrame.new(-20, 9, 12),
+		Color = Color3.fromRGB(80, 220, 255),
+		Material = Enum.Material.Neon,
+		CanCollide = false,
+		Parent = decor,
+	})
+	makePart({
+		Name = "StartPillar",
+		Size = Vector3.new(3, 18, 3),
+		CFrame = CFrame.new(20, 9, 12),
+		Color = Color3.fromRGB(80, 220, 255),
+		Material = Enum.Material.Neon,
+		CanCollide = false,
+		Parent = decor,
+	})
+	local startTop = makePart({
+		Name = "StartTop",
+		Size = Vector3.new(43, 3, 3),
+		CFrame = CFrame.new(0, 18, 12),
+		Color = Color3.fromRGB(80, 220, 255),
+		Material = Enum.Material.Neon,
+		CanCollide = false,
+		Parent = decor,
+	})
+	addBillboard(startTop, "NEON HEIST", Color3.fromRGB(240, 250, 255), 4, 420, 70)
+	addBillboard(startLeft, "ASEGURA 3 NUCLEOS", Color3.fromRGB(150, 230, 255), 4, 260, 40)
+
+	local checkpoints = {}
+	local reserved = {}
+
+	-- Checkpoints.
+	for i = 1, Config.CheckpointCount do
+		local z = -i * Config.CheckpointSpacing
+		local zone = zoneAtZ(z)
+		local strip = makePart({
+			Name = "Checkpoint_" .. i,
+			Size = Vector3.new(Config.TrackWidth, 0.4, 8),
+			CFrame = CFrame.new(0, 1.2, z),
+			Color = zone.Accent,
+			Material = Enum.Material.Neon,
+			CanCollide = false,
+			Parent = checkpointsFolder,
+		})
+		strip:SetAttribute("CheckpointIndex", i)
+		addBillboard(strip, "CHECKPOINT " .. i, zone.Accent, 7, 240, 48)
+		checkpoints[i] = strip
+		table.insert(reserved, z)
+	end
+
+	-- Arcos de zona.
+	for zoneIndex = 2, #Config.Zones do
+		local zone = Config.Zones[zoneIndex]
+		local z = -((zoneIndex - 1) * Config.ZoneLength)
+		for _, x in ipairs({ -23.5, 23.5 }) do
+			makePart({
+				Name = "ZonePillar",
+				Size = Vector3.new(2.5, 16, 2.5),
+				CFrame = CFrame.new(x, 8, z),
+				Color = zone.Accent,
+				Material = Enum.Material.Neon,
+				CanCollide = false,
+				Parent = decor,
+			})
+		end
+		local top = makePart({
+			Name = "ZoneTop",
+			Size = Vector3.new(50, 2.5, 2.5),
+			CFrame = CFrame.new(0, 16, z),
+			Color = zone.Accent,
+			Material = Enum.Material.Neon,
+			CanCollide = false,
+			Parent = decor,
+		})
+		addBillboard(top, zoneIndex .. ". " .. zone.Name, zone.Accent, 4, 460, 60)
+	end
+
+	local lanes = { -16.5, -5.5, 5.5, 16.5 }
+	local rng = Random.new(20261103)
+
+	-- Plataformas de impulso.
+	local boostPads = {}
+	local boostZ = -300
+	while boostZ > -Config.TrackLength + 100 do
+		local lane = lanes[rng:NextInteger(1, #lanes)]
+		local pad = makePart({
+			Name = "BoostPad",
+			Size = Vector3.new(10, 0.5, 10),
+			CFrame = CFrame.new(lane, 1.2, boostZ),
+			Color = BOOST_COLOR,
+			Material = Enum.Material.Neon,
+			CanCollide = false,
+			Parent = effects,
+		})
+		pad:SetAttribute("BoostPad", true)
+		table.insert(boostPads, pad)
+		table.insert(reserved, boostZ)
+		boostZ -= 600
+	end
+
+	-- Obstaculos moviles: barras que giran y se saltan.
+	local sweepers = {}
+	for zoneIndex = 2, #Config.Zones do
+		local z = -((zoneIndex - 1) * Config.ZoneLength) - 250
+		local bar = makePart({
+			Name = "Sweeper",
+			Size = Vector3.new(Config.TrackWidth + 4, 1.4, 1.4),
+			CFrame = CFrame.new(0, 3, z),
+			Color = DANGER_COLOR,
+			Material = Enum.Material.Neon,
+			CanCollide = false,
+			CanTouch = true,
+			Parent = hazards,
+		})
+		bar:SetAttribute("Sweeper", true)
+		makePart({
+			Name = "SweeperCore",
+			Size = Vector3.new(2.4, 2.4, 2.4),
+			CFrame = CFrame.new(0, 3, z),
+			Color = Color3.fromRGB(255, 160, 80),
+			Material = Enum.Material.Neon,
+			CanCollide = false,
+			CanTouch = false,
+			Parent = decor,
+		})
+		table.insert(sweepers, {
+			Part = bar,
+			Position = Vector3.new(0, 3, z),
+			Speed = 0.85 + zoneIndex * 0.08,
+			Angle = zoneIndex,
+		})
+		table.insert(reserved, z)
+	end
+
+	-- Obstaculos fijos.
+	local obstacles = {}
+	local z = -180
+	while z > -Config.TrackLength + 200 do
+		if isClear(z, reserved, 55) then
+			local laneCount = rng:NextInteger(1, 2)
+			local picked = {}
+			local used = {}
+			while #picked < laneCount do
+				local lane = rng:NextInteger(1, #lanes)
+				if not used[lane] then
+					used[lane] = true
+					table.insert(picked, lane)
+				end
+			end
+			for _, lane in ipairs(picked) do
+				local obstacle = makePart({
+					Name = "Obstacle",
+					Size = Vector3.new(9.5, 12, 6),
+					CFrame = CFrame.new(lanes[lane], 7, z),
+					Color = DANGER_COLOR,
+					Material = Enum.Material.Neon,
+					Parent = hazards,
+				})
+				table.insert(obstacles, obstacle)
+			end
+			table.insert(reserved, z)
+		end
+		z -= rng:NextNumber(120, 190)
+	end
+
+	-- Monedas coleccionables.
+	local coins = {}
+	for zoneIndex = 1, #Config.Zones do
+		local zoneStart = -((zoneIndex - 1) * Config.ZoneLength)
+		for _ = 1, Config.CoinPerZone do
+			for _ = 1, 24 do
+				local coinZ = zoneStart - rng:NextNumber(60, Config.ZoneLength - 60)
+				if isClear(coinZ, reserved, 28) then
+					local lane = lanes[rng:NextInteger(1, #lanes)]
+					local position = Vector3.new(lane, 2.4, coinZ)
+					local coin = Instance.new("Part")
+					coin.Name = "Coin"
+					coin.Shape = Enum.PartType.Cylinder
+					coin.Size = Vector3.new(0.5, 4.5, 4.5)
+					coin.CFrame = CFrame.new(position) * CFrame.Angles(0, math.rad(90), 0)
+					coin.Anchored = true
+					coin.CanCollide = false
+					coin.CanTouch = true
+					coin.Material = Enum.Material.Neon
+					coin.Color = COIN_COLOR
+					coin.Parent = coinsFolder
+					table.insert(coins, {
+						Part = coin,
+						Value = Config.CoinValue + (zoneIndex - 1) * 5,
+						Position = position,
+					})
+					table.insert(reserved, coinZ)
+					break
+				end
+			end
+		end
+	end
+
+	-- Meta.
+	local finishZ = -Config.TrackLength
+	for _, x in ipairs({ -22, 22 }) do
+		makePart({
+			Name = "FinishPillar",
+			Size = Vector3.new(4, 24, 4),
+			CFrame = CFrame.new(x, 13, finishZ),
+			Color = FINISH_COLOR,
+			Material = Enum.Material.Neon,
+			Parent = effects,
+		})
+	end
+	makePart({
+		Name = "FinishTop",
+		Size = Vector3.new(48, 4, 4),
+		CFrame = CFrame.new(0, 27, finishZ),
+		Color = FINISH_COLOR,
+		Material = Enum.Material.Neon,
+		Parent = effects,
+	})
+	local gate = makePart({
+		Name = "FinishGate",
+		Size = Vector3.new(Config.TrackWidth, 24, 1),
+		CFrame = CFrame.new(0, 13, finishZ),
+		Color = FINISH_COLOR,
+		Material = Enum.Material.ForceField,
+		Transparency = 0.55,
+		CanCollide = false,
+		CanTouch = false,
+		Parent = effects,
+	})
+	addBillboard(gate, "META", FINISH_COLOR, 6, 300, 70)
+
+	local finishTrigger = makePart({
+		Name = "FinishTrigger",
+		Size = Vector3.new(Config.TrackWidth, 24, 12),
+		CFrame = CFrame.new(0, 13, finishZ),
+		Transparency = 1,
+		CanCollide = false,
+		CanTouch = true,
+		Parent = effects,
+	})
+
+	local voidPlane = makePart({
+		Name = "VoidPlane",
+		Size = Vector3.new(500, 24, Config.TrackLength + 400),
+		CFrame = CFrame.new(0, -40, -Config.TrackLength / 2),
+		Transparency = 1,
+		CanCollide = false,
+		CanTouch = true,
+		Parent = effects,
+	})
+
+	-- Iluminacion y post-procesado.
+	Lighting.ClockTime = 18.5
+	Lighting.Brightness = 2.2
+	Lighting.Ambient = Color3.fromRGB(60, 65, 92)
+	Lighting.OutdoorAmbient = Color3.fromRGB(85, 92, 130)
+	Lighting.FogStart = 900
+	Lighting.FogEnd = 2800
+	Lighting.FogColor = Color3.fromRGB(105, 125, 170)
+	Lighting.GlobalShadows = true
+	Lighting.EnvironmentDiffuseScale = 0.35
+	Lighting.EnvironmentSpecularScale = 0.35
+
+	local atmosphere = ensureEffect("Atmosphere", "SpeedEscapeAtmosphere")
+	atmosphere.Density = 0.32
+	atmosphere.Haze = 1.4
+	atmosphere.Glare = 0
+	atmosphere.Color = Color3.fromRGB(140, 170, 220)
+	atmosphere.Decay = Color3.fromRGB(80, 100, 150)
+
+	local bloom = ensureEffect("BloomEffect", "SpeedEscapeBloom")
+	bloom.Intensity = 0.9
+	bloom.Size = 26
+	bloom.Threshold = 1.1
+
+	local correction = ensureEffect("ColorCorrectionEffect", "SpeedEscapeColor")
+	correction.Saturation = 0.18
+	correction.Contrast = 0.08
+	correction.Brightness = 0
+
+	local rays = ensureEffect("SunRaysEffect", "SpeedEscapeRays")
+	rays.Intensity = 0.05
+	rays.Spread = 0.5
+
+	map.Parent = Workspace
+
+	-- Animacion: monedas girando y barras barriendo.
+	task.spawn(function()
+		local elapsed = 0
+		while true do
+			elapsed += task.wait(0.1)
+			for _, entry in ipairs(coins) do
+				local coin = entry.Part
+				if coin.Parent and coin.CanTouch then
+					local bob = math.sin(elapsed * 2 + entry.Position.Z * 0.05) * 0.25
+					coin.CFrame = CFrame.new(entry.Position + Vector3.new(0, bob, 0))
+						* CFrame.Angles(0, elapsed * 2.2 + entry.Position.Z * 0.1, 0)
+						* CFrame.Angles(0, math.rad(90), 0)
+				end
+			end
+		end
+	end)
+
+	task.spawn(function()
+		while true do
+			local deltaTime = task.wait(1 / 30)
+			for _, sweeper in ipairs(sweepers) do
+				if sweeper.Part.Parent then
+					sweeper.Angle += deltaTime * sweeper.Speed
+					sweeper.Part.CFrame = CFrame.new(sweeper.Position) * CFrame.Angles(0, sweeper.Angle, 0)
+				end
+			end
+		end
+	end)
+
+	return {
+		spawn = spawn,
+		checkpoints = checkpoints,
+		obstacles = obstacles,
+		boostPads = boostPads,
+		sweepers = sweepers,
+		coins = coins,
+		finishTrigger = finishTrigger,
+		voidPlane = voidPlane,
+		finishZ = finishZ,
+	}
+end
+
+return MapBuilder
+]]></string>
+      </Properties>
+    </Item>
+  </Item>
+  <Item class="StarterPlayer" referent="16">
+    <Properties>
+      <string name="Name">StarterPlayer</string>
+    </Properties>
+    <Item class="StarterPlayerScripts" referent="17">
+      <Properties>
+        <string name="Name">StarterPlayerScripts</string>
+      </Properties>
+      <Item class="LocalScript" referent="18">
+        <Properties>
+          <string name="Name">InputController</string>
+          <string name="Source"><![CDATA[-- Envia +1 velocidad al servidor con cada tecla pulsada (con limite local).
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local player = Players.LocalPlayer
+
+local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+local AddSpeed = Remotes:WaitForChild("AddSpeed")
+
+local MIN_INTERVAL = 1 / 30
+local lastSent = 0
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then
+		return
+	end
+	if input.UserInputType ~= Enum.UserInputType.Keyboard then
+		return
+	end
+	local now = os.clock()
+	if now - lastSent < MIN_INTERVAL then
+		return
+	end
+	lastSent = now
+	AddSpeed:FireServer()
+end)
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="LocalScript" referent="19">
+        <Properties>
+          <string name="Name">UIController</string>
+          <string name="Source"><![CDATA[-- HUD, tienda, misiones, ranking, combo, efectos y controles tactiles.
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
+
+local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+local AddSpeed = Remotes:WaitForChild("AddSpeed")
+local BuyUpgrade = Remotes:WaitForChild("BuyUpgrade")
+local Rebirth = Remotes:WaitForChild("Rebirth")
+local GetState = Remotes:WaitForChild("GetState")
+local SyncState = Remotes:WaitForChild("SyncState")
+local Notify = Remotes:WaitForChild("Notify")
+local FX = Remotes:WaitForChild("FX")
+local Leaderboard = Remotes:WaitForChild("Leaderboard")
+local ClaimDaily = Remotes:WaitForChild("ClaimDaily")
+
+local C = {
+	bg = Color3.fromRGB(7, 9, 20),
+	panel = Color3.fromRGB(15, 19, 38),
+	panelLight = Color3.fromRGB(31, 38, 72),
+	accent = Color3.fromRGB(80, 220, 255),
+	violet = Color3.fromRGB(176, 112, 255),
+	green = Color3.fromRGB(80, 255, 150),
+	yellow = Color3.fromRGB(255, 215, 60),
+	red = Color3.fromRGB(255, 90, 90),
+	text = Color3.fromRGB(240, 244, 255),
+	muted = Color3.fromRGB(150, 160, 190),
+}
+local FONT_BOLD = Enum.Font.GothamBold
+local FONT_BLACK = Enum.Font.GothamBlack
+
+local function create(className, props)
+	local instance = Instance.new(className)
+	for key, value in pairs(props) do
+		if key ~= "Parent" then
+			instance[key] = value
+		end
+	end
+	instance.Parent = props.Parent
+	return instance
+end
+
+local function corner(parent, radius)
+	local item = Instance.new("UICorner")
+	item.CornerRadius = UDim.new(0, radius or 8)
+	item.Parent = parent
+end
+
+local function stroke(parent, color, thickness, transparency)
+	local item = Instance.new("UIStroke")
+	item.Color = color or C.accent
+	item.Thickness = thickness or 2
+	item.Transparency = transparency or 0
+	item.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	item.Parent = parent
+end
+
+local function gradient(parent, fromColor, toColor, rotation)
+	local item = Instance.new("UIGradient")
+	item.Color = ColorSequence.new(fromColor, toColor)
+	item.Rotation = rotation or 90
+	item.Parent = parent
+	return item
+end
+
+local function comma(number)
+	local text = tostring(math.floor(number))
+	local count
+	repeat
+		text, count = text:gsub("^(-?%d+)(%d%d%d)", "%1,%2")
+	until count == 0
+	return text
+end
+
+local function short(number)
+	number = math.floor(number)
+	if number >= 1e9 then
+		return string.format("%.1fB", number / 1e9)
+	elseif number >= 1e6 then
+		return string.format("%.1fM", number / 1e6)
+	elseif number >= 1e3 then
+		return string.format("%.1fK", number / 1e3)
+	end
+	return tostring(number)
+end
+
+local function rankFor(speed)
+	local selected = Config.RankTiers[1]
+	for _, tier in ipairs(Config.RankTiers) do
+		if speed >= tier.Speed then
+			selected = tier
+		end
+	end
+	return selected
+end
+
+local function zoneForZ(z)
+	local index = math.clamp(math.floor((-z) / Config.ZoneLength) + 1, 1, #Config.Zones)
+	return Config.Zones[index], index
+end
+
+local screenGui = create("ScreenGui", {
+	Name = "NeonHeistHUD",
+	IgnoreGuiInset = false,
+	ResetOnSpawn = false,
+	ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+	DisplayOrder = 20,
+	Parent = playerGui,
+})
+
+local backdrop = create("Frame", {
+	Name = "Backdrop",
+	Size = UDim2.fromScale(1, 1),
+	BackgroundColor3 = C.bg,
+	BackgroundTransparency = 0.18,
+	BorderSizePixel = 0,
+	ZIndex = 0,
+	Parent = screenGui,
+})
+gradient(backdrop, Color3.fromRGB(7, 10, 28), Color3.fromRGB(27, 10, 42), 25)
+
+-- Estado local
+local state = nil
+local topData = {}
+local currentSpeed = 0
+local currentCoins = 0
+local currentBest = 0
+local displaySpeed = 0
+local combo = 0
+local lastKeyTime = 0
+local lastMobileSend = 0
+local openName = nil
+local togglePanel
+local closePanel
+local trail = nil
+
+-- Velocidad (centro superior).
+local speedFrame = create("Frame", {
+	Name = "SpeedFrame",
+	AnchorPoint = Vector2.new(0.5, 0),
+	Position = UDim2.new(0.5, 0, 0, 10),
+	Size = UDim2.fromOffset(340, 106),
+	BackgroundColor3 = C.bg,
+	BackgroundTransparency = 0.12,
+	Parent = screenGui,
+})
+corner(speedFrame, 16)
+stroke(speedFrame, C.accent, 2, 0.35)
+gradient(speedFrame, Color3.fromRGB(13, 24, 48), Color3.fromRGB(20, 12, 42), 25)
+
+create("TextLabel", {
+	Position = UDim2.fromOffset(0, 6),
+	Size = UDim2.new(1, 0, 0, 18),
+	BackgroundTransparency = 1,
+	Text = "VELOCIDAD",
+	TextColor3 = C.muted,
+	Font = FONT_BOLD,
+	TextSize = 14,
+	Parent = speedFrame,
+})
+
+local speedValue = create("TextLabel", {
+	Position = UDim2.fromOffset(0, 20),
+	Size = UDim2.new(1, 0, 0, 54),
+	BackgroundTransparency = 1,
+	Text = "0",
+	TextColor3 = C.text,
+	Font = FONT_BLACK,
+	TextSize = 44,
+	Parent = speedFrame,
+})
+
+local rankLabel = create("TextLabel", {
+	Position = UDim2.fromOffset(0, 76),
+	Size = UDim2.new(1, 0, 0, 20),
+	BackgroundTransparency = 1,
+	Text = "NOVATO",
+	TextColor3 = C.muted,
+	Font = FONT_BLACK,
+	TextSize = 14,
+	Parent = speedFrame,
+})
+
+local comboLabel = create("TextLabel", {
+	AnchorPoint = Vector2.new(0.5, 0),
+	Position = UDim2.new(0.5, 0, 0, 120),
+	Size = UDim2.fromOffset(420, 24),
+	BackgroundTransparency = 1,
+	Text = "COMBO x0",
+	TextColor3 = C.muted,
+	Font = FONT_BLACK,
+	TextSize = 18,
+	Parent = screenGui,
+})
+
+-- Barra de progreso.
+local progressBackground = create("Frame", {
+	AnchorPoint = Vector2.new(0.5, 0),
+	Position = UDim2.new(0.5, 0, 0, 146),
+	Size = UDim2.fromOffset(340, 12),
+	BackgroundColor3 = C.panel,
+	BorderSizePixel = 0,
+	Parent = screenGui,
+})
+corner(progressBackground, 6)
+stroke(progressBackground, C.panelLight, 1, 0.2)
+
+local progressFill = create("Frame", {
+	Size = UDim2.fromScale(0, 1),
+	BackgroundColor3 = C.accent,
+	BorderSizePixel = 0,
+	Parent = progressBackground,
+})
+corner(progressFill, 6)
+
+local zoneLabel = create("TextLabel", {
+	AnchorPoint = Vector2.new(0.5, 0),
+	Position = UDim2.new(0.5, 0, 0, 162),
+	Size = UDim2.fromOffset(420, 20),
+	BackgroundTransparency = 1,
+	Text = "ZONA 1 · " .. Config.Zones[1].Name,
+	TextColor3 = C.accent,
+	Font = FONT_BOLD,
+	TextSize = 13,
+	Parent = screenGui,
+})
+
+local heistLabel = create("TextLabel", {
+	AnchorPoint = Vector2.new(0.5, 0),
+	Position = UDim2.new(0.5, 0, 0, 182),
+	Size = UDim2.fromOffset(420, 22),
+	BackgroundTransparency = 1,
+	Text = "NUCLEOS 0/3  ·  EXTRAE EN LA META",
+	TextColor3 = C.yellow,
+	Font = FONT_BLACK,
+	TextSize = 13,
+	Parent = screenGui,
+})
+
+-- Monedas, renacimientos y record.
+local statsFrame = create("Frame", {
+	Position = UDim2.fromOffset(14, 72),
+	Size = UDim2.fromOffset(268, 88),
+	BackgroundColor3 = C.bg,
+	BackgroundTransparency = 0.12,
+	Parent = screenGui,
+})
+corner(statsFrame, 14)
+stroke(statsFrame, C.panelLight, 2, 0.2)
+gradient(statsFrame, Color3.fromRGB(14, 21, 42), Color3.fromRGB(24, 14, 43), 20)
+
+local brandFrame = create("Frame", {
+	Name = "BrandFrame",
+	Position = UDim2.fromOffset(14, 14),
+	Size = UDim2.fromOffset(268, 48),
+	BackgroundColor3 = C.panel,
+	BackgroundTransparency = 0.08,
+	BorderSizePixel = 0,
+	Parent = screenGui,
+})
+corner(brandFrame, 14)
+stroke(brandFrame, C.violet, 1, 0.2)
+gradient(brandFrame, Color3.fromRGB(25, 18, 55), Color3.fromRGB(10, 32, 54), 0)
+create("TextLabel", {
+	Position = UDim2.fromOffset(14, 6),
+	Size = UDim2.fromOffset(240, 22),
+	BackgroundTransparency = 1,
+	Text = "NEON HEIST",
+	TextColor3 = C.text,
+	Font = FONT_BLACK,
+	TextSize = 20,
+	TextXAlignment = Enum.TextXAlignment.Left,
+	Parent = brandFrame,
+})
+create("TextLabel", {
+	Position = UDim2.fromOffset(15, 28),
+	Size = UDim2.fromOffset(240, 14),
+	BackgroundTransparency = 1,
+	Text = "CONTRATO 01  //  EXTRACCION",
+	TextColor3 = C.violet,
+	Font = FONT_BOLD,
+	TextSize = 10,
+	TextXAlignment = Enum.TextXAlignment.Left,
+	Parent = brandFrame,
+})
+
+local function statBlock(parent, offsetX, title, color)
+	create("TextLabel", {
+		Position = UDim2.fromOffset(offsetX, 10),
+		Size = UDim2.fromOffset(80, 18),
+		BackgroundTransparency = 1,
+		Text = title,
+		TextColor3 = C.muted,
+		Font = FONT_BOLD,
+		TextSize = 11,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = parent,
+	})
+	return create("TextLabel", {
+		Position = UDim2.fromOffset(offsetX, 32),
+		Size = UDim2.fromOffset(80, 32),
+		BackgroundTransparency = 1,
+		Text = "0",
+		TextColor3 = color,
+		Font = FONT_BLACK,
+		TextSize = 21,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = parent,
+	})
+end
+
+local coinsLabel = statBlock(statsFrame, 14, "MONEDAS", C.yellow)
+local rebirthsLabel = statBlock(statsFrame, 98, "RENACERES", C.green)
+local bestLabel = statBlock(statsFrame, 182, "MEJOR", C.accent)
+
+local contractCard = create("Frame", {
+	Name = "ContractCard",
+	AnchorPoint = Vector2.new(0, 1),
+	Position = UDim2.new(0, 14, 1, -20),
+	Size = UDim2.fromOffset(268, 76),
+	BackgroundColor3 = C.panel,
+	BackgroundTransparency = 0.06,
+	BorderSizePixel = 0,
+	Parent = screenGui,
+})
+corner(contractCard, 14)
+stroke(contractCard, C.yellow, 1, 0.25)
+gradient(contractCard, Color3.fromRGB(31, 25, 47), Color3.fromRGB(15, 23, 44), 0)
+create("TextLabel", {
+	Position = UDim2.fromOffset(14, 8),
+	Size = UDim2.fromOffset(150, 16),
+	BackgroundTransparency = 1,
+	Text = "CONTRATO ACTIVO",
+	TextColor3 = C.yellow,
+	Font = FONT_BLACK,
+	TextSize = 11,
+	TextXAlignment = Enum.TextXAlignment.Left,
+	Parent = contractCard,
+})
+create("TextLabel", {
+	Position = UDim2.fromOffset(14, 27),
+	Size = UDim2.fromOffset(220, 18),
+	BackgroundTransparency = 1,
+	Text = "RECUPERA NUCLEOS Y EXTRAE",
+	TextColor3 = C.text,
+	Font = FONT_BOLD,
+	TextSize = 12,
+	TextXAlignment = Enum.TextXAlignment.Left,
+	Parent = contractCard,
+})
+local contractProgress = create("TextLabel", {
+	AnchorPoint = Vector2.new(1, 0),
+	Position = UDim2.new(1, -14, 0, 8),
+	Size = UDim2.fromOffset(64, 18),
+	BackgroundTransparency = 1,
+	Text = "0/3",
+	TextColor3 = C.yellow,
+	Font = FONT_BLACK,
+	TextSize = 16,
+	TextXAlignment = Enum.TextXAlignment.Right,
+	Parent = contractCard,
+})
+local contractBar = create("Frame", {
+	Position = UDim2.fromOffset(14, 55),
+	Size = UDim2.new(1, -28, 0, 7),
+	BackgroundColor3 = C.panelLight,
+	BorderSizePixel = 0,
+	Parent = contractCard,
+})
+corner(contractBar, 4)
+local contractFill = create("Frame", {
+	Size = UDim2.fromScale(0, 1),
+	BackgroundColor3 = C.yellow,
+	BorderSizePixel = 0,
+	Parent = contractBar,
+})
+corner(contractFill, 4)
+
+-- Ayuda inferior.
+local isTouch = UserInputService.TouchEnabled
+local hint = create("TextLabel", {
+	AnchorPoint = Vector2.new(0.5, 1),
+	Position = UDim2.new(0.5, 0, 1, -20),
+	Size = UDim2.fromOffset(660, 26),
+	BackgroundTransparency = 1,
+	Text = "WASD para correr  |  Cualquier tecla carga tu escape",
+	TextColor3 = C.muted,
+	Font = FONT_BOLD,
+	TextSize = 17,
+	Visible = not isTouch,
+	Parent = screenGui,
+})
+
+-- Botones de menu.
+local function menuButton(name, text, color, textColor)
+	local button = create("TextButton", {
+		Name = name,
+		AnchorPoint = Vector2.new(1, 1),
+		Position = UDim2.new(1, -16, 1, -18),
+		Size = UDim2.fromOffset(190, 46),
+		BackgroundColor3 = color,
+		Text = text,
+		TextColor3 = textColor,
+		Font = FONT_BLACK,
+		TextSize = 17,
+		AutoButtonColor = false,
+		Parent = screenGui,
+	})
+	corner(button, 12)
+	stroke(button, textColor == C.bg and Color3.fromRGB(140, 240, 255) or C.panelLight, 1, 0.25)
+	gradient(button, color:Lerp(Color3.new(1, 1, 1), 0.08), color:Lerp(Color3.new(0, 0, 0), 0.22), 90)
+	button.MouseEnter:Connect(function()
+		TweenService:Create(button, TweenInfo.new(0.12), {Size = UDim2.fromOffset(198, 48)}):Play()
+	end)
+	button.MouseLeave:Connect(function()
+		TweenService:Create(button, TweenInfo.new(0.12), {Size = UDim2.fromOffset(190, 46)}):Play()
+	end)
+	return button
+end
+
+local rebirthButton = menuButton("RebirthButton", "RENACER", C.panelLight, C.muted)
+stroke(rebirthButton, C.green, 2, 0.55)
+local shopButton = menuButton("ShopButton", "TIENDA", C.accent, C.bg)
+local missionsButton = menuButton("MissionsButton", "MISIONES", C.panelLight, C.text)
+stroke(missionsButton, C.yellow, 2, 0.5)
+local topButton = menuButton("TopButton", "TOP", C.panelLight, C.text)
+stroke(topButton, C.accent, 2, 0.5)
+local dailyButton = menuButton("DailyButton", "BONO DIARIO", C.yellow, C.bg)
+
+local menuButtons = { rebirthButton, shopButton, missionsButton, topButton, dailyButton }
+
+local function layoutMenu()
+	if isTouch then
+		for index, button in ipairs(menuButtons) do
+			button.AnchorPoint = Vector2.new(1, 0)
+			button.Position = UDim2.new(1, -10, 0.34 + (index - 1) * 0.062, 0)
+			button.Size = UDim2.fromOffset(128, 40)
+			button.TextSize = 15
+		end
+	else
+		for index, button in ipairs(menuButtons) do
+			button.AnchorPoint = Vector2.new(1, 1)
+			button.Position = UDim2.new(1, -16, 1, -18 - (index - 1) * 52)
+			button.Size = UDim2.fromOffset(190, 46)
+			button.TextSize = 17
+		end
+	end
+end
+layoutMenu()
+
+-- Boton tactil +1.
+local mobileButton = create("TextButton", {
+	Name = "MobileSpeedButton",
+	AnchorPoint = Vector2.new(0.5, 1),
+	Position = UDim2.new(0.5, 0, 1, -18),
+	Size = UDim2.fromOffset(116, 116),
+	BackgroundColor3 = C.accent,
+	BackgroundTransparency = 0.05,
+	Text = "CARGAR\nESCAPE",
+	TextColor3 = C.bg,
+	Font = FONT_BLACK,
+	TextSize = 22,
+	TextWrapped = true,
+	Visible = isTouch,
+	Parent = screenGui,
+})
+corner(mobileButton, 58)
+stroke(mobileButton, C.text, 2, 0.5)
+gradient(mobileButton, Color3.fromRGB(100, 240, 255), Color3.fromRGB(106, 93, 255), 135)
+
+-- Fondo de paneles.
+local dimmer = create("TextButton", {
+	Name = "Dimmer",
+	Size = UDim2.fromScale(1, 1),
+	BackgroundColor3 = Color3.new(0, 0, 0),
+	BackgroundTransparency = 0.45,
+	Text = "",
+	AutoButtonColor = false,
+	Visible = false,
+	ZIndex = 10,
+	Parent = screenGui,
+})
+
+local function makePanel(name, size, zIndex)
+	local panel = create("Frame", {
+		Name = name,
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = size,
+		BackgroundColor3 = C.bg,
+		Visible = false,
+		ZIndex = zIndex,
+		Parent = screenGui,
+	})
+	corner(panel, 18)
+	stroke(panel, C.accent, 2, 0.2)
+	gradient(panel, Color3.fromRGB(13, 18, 38), Color3.fromRGB(26, 12, 45), 25)
+
+	local scale = Instance.new("UIScale")
+	scale.Parent = panel
+	local function updateScale()
+		local camera = workspace.CurrentCamera
+		local viewport = camera and camera.ViewportSize or Vector2.new(1280, 720)
+		scale.Scale = math.clamp(math.min(
+			(viewport.X - 36) / size.X.Offset,
+			(viewport.Y - 36) / size.Y.Offset
+		), 0.55, 1)
+	end
+	updateScale()
+	if workspace.CurrentCamera then
+		workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(updateScale)
+	end
+	return panel
+end
+
+local function addTitle(panel, text)
+	create("TextLabel", {
+		Position = UDim2.fromOffset(20, 14),
+		Size = UDim2.new(1, -80, 0, 30),
+		BackgroundTransparency = 1,
+		Text = text,
+		TextColor3 = C.text,
+		Font = FONT_BLACK,
+		TextSize = 22,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = panel,
+	})
+end
+
+local function addClose(panel)
+	local button = create("TextButton", {
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -14, 0, 12),
+		Size = UDim2.fromOffset(34, 34),
+		BackgroundColor3 = C.panelLight,
+		Text = "X",
+		TextColor3 = C.text,
+		Font = FONT_BLACK,
+		TextSize = 16,
+		Parent = panel,
+	})
+	corner(button, 8)
+	button.Activated:Connect(function()
+		if closePanel then
+			closePanel()
+		end
+	end)
+end
+
+-- Tienda.
+local shopPanel = makePanel("ShopPanel", UDim2.fromOffset(500, 540), 11)
+addTitle(shopPanel, "MEJORAS")
+addClose(shopPanel)
+
+local upgradeRows = {}
+local upgradeOrder = { "Speed", "Coins", "Auto", "Magnet", "Jump" }
+
+local function effectText(key)
+	local upgrade = Config.Upgrades[key]
+	if key == "Speed" or key == "Coins" then
+		return string.format("+%d%% por nivel", math.floor(upgrade.Effect * 100))
+	elseif key == "Auto" then
+		return string.format("+%d velocidad por segundo", upgrade.Effect)
+	elseif key == "Magnet" then
+		return string.format("+%d studs de iman", upgrade.Effect)
+	elseif key == "Jump" then
+		return string.format("+%d de salto", upgrade.Effect)
+	end
+	return ""
+end
+
+for index, key in ipairs(upgradeOrder) do
+	local upgrade = Config.Upgrades[key]
+	local row = create("Frame", {
+		Name = key .. "Row",
+		Position = UDim2.fromOffset(16, 58 + (index - 1) * 86),
+		Size = UDim2.new(1, -32, 0, 76),
+		BackgroundColor3 = C.panel,
+		BorderSizePixel = 0,
+		Parent = shopPanel,
+	})
+	corner(row, 12)
+	gradient(row, Color3.fromRGB(21, 27, 52), Color3.fromRGB(17, 17, 35), 0)
+
+	create("TextLabel", {
+		Position = UDim2.fromOffset(14, 7),
+		Size = UDim2.fromOffset(250, 24),
+		BackgroundTransparency = 1,
+		Text = upgrade.Label,
+		TextColor3 = C.text,
+		Font = FONT_BLACK,
+		TextSize = 19,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = row,
+	})
+
+	local levelLabel = create("TextLabel", {
+		Position = UDim2.fromOffset(14, 33),
+		Size = UDim2.fromOffset(250, 18),
+		BackgroundTransparency = 1,
+		Text = "Nivel 0 / " .. upgrade.MaxLevel,
+		TextColor3 = C.muted,
+		Font = FONT_BOLD,
+		TextSize = 13,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = row,
+	})
+
+	create("TextLabel", {
+		Position = UDim2.fromOffset(14, 52),
+		Size = UDim2.fromOffset(270, 18),
+		BackgroundTransparency = 1,
+		Text = effectText(key),
+		TextColor3 = C.muted,
+		Font = FONT_BOLD,
+		TextSize = 12,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = row,
+	})
+
+	local buyButton = create("TextButton", {
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -14, 0.5, 0),
+		Size = UDim2.fromOffset(146, 46),
+		BackgroundColor3 = C.green,
+		Text = "Comprar",
+		TextColor3 = C.bg,
+		Font = FONT_BLACK,
+		TextSize = 15,
+		AutoButtonColor = false,
+		Parent = row,
+	})
+	corner(buyButton, 10)
+	gradient(buyButton, C.green, Color3.fromRGB(34, 175, 125), 90)
+	buyButton.Activated:Connect(function()
+		BuyUpgrade:FireServer(key)
+	end)
+
+	upgradeRows[key] = { level = levelLabel, buy = buyButton }
+end
+
+-- Misiones.
+local missionsPanel = makePanel("MissionsPanel", UDim2.fromOffset(480, 400), 11)
+addTitle(missionsPanel, "MISIONES")
+addClose(missionsPanel)
+
+local missionRows = {}
+local missionOrder = { "Keys", "Coins", "Checkpoint" }
+
+for index, key in ipairs(missionOrder) do
+	local definition = Config.Missions[key]
+	local row = create("Frame", {
+		Name = key .. "Mission",
+		Position = UDim2.fromOffset(16, 58 + (index - 1) * 104),
+		Size = UDim2.new(1, -32, 0, 92),
+		BackgroundColor3 = C.panel,
+		BorderSizePixel = 0,
+		Parent = missionsPanel,
+	})
+	corner(row, 12)
+	gradient(row, Color3.fromRGB(21, 27, 52), Color3.fromRGB(17, 17, 35), 0)
+
+	create("TextLabel", {
+		Position = UDim2.fromOffset(14, 8),
+		Size = UDim2.fromOffset(240, 24),
+		BackgroundTransparency = 1,
+		Text = definition.Label,
+		TextColor3 = C.text,
+		Font = FONT_BLACK,
+		TextSize = 18,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = row,
+	})
+
+	local levelLabel = create("TextLabel", {
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -14, 8),
+		Size = UDim2.fromOffset(140, 22),
+		BackgroundTransparency = 1,
+		Text = "Nivel 0",
+		TextColor3 = C.yellow,
+		Font = FONT_BOLD,
+		TextSize = 13,
+		TextXAlignment = Enum.TextXAlignment.Right,
+		Parent = row,
+	})
+
+	local barBackground = create("Frame", {
+		Position = UDim2.fromOffset(14, 42),
+		Size = UDim2.new(1, -28, 0, 10),
+		BackgroundColor3 = C.panelLight,
+		BorderSizePixel = 0,
+		Parent = row,
+	})
+	corner(barBackground, 5)
+
+	local barFill = create("Frame", {
+		Size = UDim2.fromScale(0, 1),
+		BackgroundColor3 = C.green,
+		BorderSizePixel = 0,
+		Parent = barBackground,
+	})
+	corner(barFill, 5)
+
+	local progressLabel = create("TextLabel", {
+		Position = UDim2.fromOffset(14, 57),
+		Size = UDim2.fromOffset(220, 22),
+		BackgroundTransparency = 1,
+		Text = "0 / 0",
+		TextColor3 = C.muted,
+		Font = FONT_BOLD,
+		TextSize = 12,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = row,
+	})
+
+	local rewardLabel = create("TextLabel", {
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -14, 57),
+		Size = UDim2.fromOffset(220, 22),
+		BackgroundTransparency = 1,
+		Text = "",
+		TextColor3 = C.yellow,
+		Font = FONT_BOLD,
+		TextSize = 12,
+		TextXAlignment = Enum.TextXAlignment.Right,
+		Parent = row,
+	})
+
+	missionRows[key] = {
+		level = levelLabel,
+		fill = barFill,
+		progress = progressLabel,
+		reward = rewardLabel,
+	}
+end
+
+-- Ranking.
+local topPanel = makePanel("TopPanel", UDim2.fromOffset(420, 540), 11)
+addTitle(topPanel, "TOP DE LA PARTIDA")
+addClose(topPanel)
+
+local topContainer = create("Frame", {
+	Position = UDim2.fromOffset(16, 58),
+	Size = UDim2.new(1, -32, 1, -74),
+	BackgroundTransparency = 1,
+	ClipsDescendants = true,
+	Parent = topPanel,
+})
+
+-- Avisos.
+local toastFrame = create("Frame", {
+	Name = "Toast",
+	AnchorPoint = Vector2.new(0.5, 0),
+	Position = UDim2.new(0.5, 0, 0, 236),
+	Size = UDim2.fromOffset(500, 44),
+	BackgroundColor3 = C.panel,
+	BackgroundTransparency = 0.05,
+	Visible = false,
+	ZIndex = 20,
+	Parent = screenGui,
+})
+corner(toastFrame, 10)
+stroke(toastFrame, C.accent, 1, 0.35)
+
+local toastLabel = create("TextLabel", {
+	Position = UDim2.fromOffset(12, 0),
+	Size = UDim2.new(1, -24, 1, 0),
+	BackgroundTransparency = 1,
+	Text = "",
+	TextColor3 = C.text,
+	Font = FONT_BOLD,
+	TextSize = 14,
+	TextWrapped = true,
+	Parent = toastFrame,
+})
+
+local toastQueue = {}
+local toastBusy = false
+
+local function showToast(message)
+	table.insert(toastQueue, message)
+	if toastBusy then
+		return
+	end
+	toastBusy = true
+	task.spawn(function()
+		while #toastQueue > 0 do
+			local text = table.remove(toastQueue, 1)
+			toastLabel.Text = text
+			toastFrame.Visible = true
+			toastFrame.BackgroundTransparency = 0.05
+			toastFrame.Position = UDim2.new(0.5, 0, 0, 250)
+			TweenService:Create(toastFrame, TweenInfo.new(0.15), {
+				Position = UDim2.new(0.5, 0, 0, 258),
+			}):Play()
+			task.wait(1.7)
+			TweenService:Create(toastFrame, TweenInfo.new(0.2), {
+				Position = UDim2.new(0.5, 0, 0, 246),
+				BackgroundTransparency = 1,
+			}):Play()
+			task.wait(0.2)
+		end
+		toastFrame.Visible = false
+		toastFrame.BackgroundTransparency = 0.05
+		toastBusy = false
+	end)
+end
+
+-- Banner de zona.
+local zoneBanner = create("TextLabel", {
+	AnchorPoint = Vector2.new(0.5, 0),
+	Position = UDim2.new(0.5, 0, 0, 208),
+	Size = UDim2.fromOffset(560, 42),
+	BackgroundTransparency = 1,
+	Text = "",
+	TextColor3 = C.accent,
+	Font = FONT_BLACK,
+	TextSize = 26,
+	TextStrokeTransparency = 0.4,
+	TextStrokeColor3 = Color3.new(0, 0, 0),
+	TextTransparency = 1,
+	Parent = screenGui,
+})
+local zoneToken = 0
+
+local function showZone(index)
+	local zone = Config.Zones[index]
+	zoneBanner.Text = "ZONA " .. index .. " · " .. zone.Name
+	zoneBanner.TextColor3 = zone.Accent
+	zoneToken += 1
+	local token = zoneToken
+	zoneBanner.TextTransparency = 1
+	TweenService:Create(zoneBanner, TweenInfo.new(0.25), { TextTransparency = 0 }):Play()
+	task.delay(2.2, function()
+		if token ~= zoneToken then
+			return
+		end
+		TweenService:Create(zoneBanner, TweenInfo.new(0.4), { TextTransparency = 1 }):Play()
+	end)
+end
+
+-- Flash de pantalla.
+local flash = create("Frame", {
+	Name = "Flash",
+	Size = UDim2.fromScale(1, 1),
+	BackgroundColor3 = C.red,
+	BackgroundTransparency = 1,
+	BorderSizePixel = 0,
+	ZIndex = 40,
+	Parent = screenGui,
+})
+
+local function flashScreen(color, peak)
+	flash.BackgroundColor3 = color
+	flash.BackgroundTransparency = 0.75
+	TweenService:Create(flash, TweenInfo.new(0.08), { BackgroundTransparency = peak }):Play()
+	task.delay(0.1, function()
+		TweenService:Create(flash, TweenInfo.new(0.3), { BackgroundTransparency = 1 }):Play()
+	end)
+end
+
+-- Textos.
+local function updateSpeedText()
+	speedValue.Text = comma(displaySpeed)
+end
+
+local function updateComboText()
+	if combo <= 0 then
+		comboLabel.Text = "COMBO x0"
+		comboLabel.TextColor3 = C.muted
+	else
+		local bonus = math.floor((Config.GetComboMultiplier(combo) - 1) * 100)
+		comboLabel.Text = string.format("COMBO x%d  ·  +%d%% monedas", combo, bonus)
+		comboLabel.TextColor3 = combo >= 50 and C.yellow or C.accent
+	end
+end
+
+local function setCurrentSpeed(value)
+	currentSpeed = value
+	local rank = rankFor(value)
+	rankLabel.Text = rank.Name
+	rankLabel.TextColor3 = rank.Color
+	if trail then
+		trail.Color = ColorSequence.new(rank.Color)
+	end
+end
+
+local function updateRebirthButton()
+	local canRebirth = currentSpeed >= Config.RebirthRequirement
+	rebirthButton.Text = "RENACER " .. short(Config.RebirthRequirement)
+	rebirthButton.BackgroundColor3 = canRebirth and C.green or C.panelLight
+	rebirthButton.TextColor3 = canRebirth and C.bg or C.muted
+end
+
+local function renderShop()
+	if not state then
+		return
+	end
+	for key, row in pairs(upgradeRows) do
+		local upgrade = Config.Upgrades[key]
+		local level = (state.Upgrades and state.Upgrades[key]) or 0
+		row.level.Text = string.format("Nivel %d / %d", level, upgrade.MaxLevel)
+		if level >= upgrade.MaxLevel then
+			row.buy.Text = "MAXIMO"
+			row.buy.BackgroundColor3 = C.panelLight
+			row.buy.TextColor3 = C.muted
+		else
+			local cost = Config.GetUpgradeCost(key, level)
+			row.buy.Text = "Comprar " .. short(cost)
+			if currentCoins >= cost then
+				row.buy.BackgroundColor3 = C.green
+				row.buy.TextColor3 = C.bg
+			else
+				row.buy.BackgroundColor3 = C.panelLight
+				row.buy.TextColor3 = C.muted
+			end
+		end
+	end
+end
+
+local function renderMissions()
+	if not state or not state.Missions then
+		return
+	end
+	for key, row in pairs(missionRows) do
+		local mission = state.Missions[key] or { Level = 0, Progress = 0 }
+		local target = Config.GetMissionTarget(key, mission.Level)
+		local progress = math.min(mission.Progress, target)
+		row.level.Text = "Nivel " .. mission.Level
+		row.progress.Text = short(progress) .. " / " .. short(target)
+		row.reward.Text = "Recompensa: " .. short(Config.GetMissionReward(key, mission.Level))
+		row.fill.Size = UDim2.fromScale(target > 0 and progress / target or 0, 1)
+	end
+end
+
+local function renderTop()
+	for _, child in ipairs(topContainer:GetChildren()) do
+		child:Destroy()
+	end
+	if #topData == 0 then
+		create("TextLabel", {
+			Size = UDim2.new(1, 0, 0, 40),
+			BackgroundTransparency = 1,
+			Text = "Aun no hay records. Se el primero.",
+			TextColor3 = C.muted,
+			Font = FONT_BOLD,
+			TextSize = 14,
+			Parent = topContainer,
+		})
+		return
+	end
+	for index, entry in ipairs(topData) do
+		local isMe = entry.Name == player.Name
+		local row = create("Frame", {
+			Position = UDim2.fromOffset(0, (index - 1) * 42),
+			Size = UDim2.new(1, 0, 0, 36),
+			BackgroundColor3 = isMe and C.panelLight or C.panel,
+			BorderSizePixel = 0,
+			Parent = topContainer,
+		})
+		corner(row, 8)
+		if isMe then
+			stroke(row, C.accent, 1, 0)
+		end
+		create("TextLabel", {
+			Position = UDim2.fromOffset(12, 0),
+			Size = UDim2.fromOffset(40, 36),
+			BackgroundTransparency = 1,
+			Text = "#" .. index,
+			TextColor3 = index <= 3 and C.yellow or C.muted,
+			Font = FONT_BLACK,
+			TextSize = 15,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			Parent = row,
+		})
+		create("TextLabel", {
+			Position = UDim2.fromOffset(54, 0),
+			Size = UDim2.new(1, -160, 1, 0),
+			BackgroundTransparency = 1,
+			Text = entry.DisplayName or entry.Name or "Jugador",
+			TextColor3 = isMe and C.accent or C.text,
+			Font = FONT_BOLD,
+			TextSize = 14,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			TextTruncate = Enum.TextTruncate.AtEnd,
+			Parent = row,
+		})
+		create("TextLabel", {
+			AnchorPoint = Vector2.new(1, 0),
+			Position = UDim2.new(1, -12, 0),
+			Size = UDim2.fromOffset(100, 36),
+			BackgroundTransparency = 1,
+			Text = short(entry.Value or 0),
+			TextColor3 = C.green,
+			Font = FONT_BLACK,
+			TextSize = 15,
+			TextXAlignment = Enum.TextXAlignment.Right,
+			Parent = row,
+		})
+	end
+end
+
+local function applyState(newState)
+	if type(newState) ~= "table" then
+		return
+	end
+	state = newState
+	state.Upgrades = state.Upgrades or {}
+	state.Missions = state.Missions or {}
+	local heistCores = state.HeistCores or 0
+	local heistGoal = state.HeistGoal or Config.HeistCoreCount
+	heistLabel.Text = string.format("NUCLEOS %d/%d  ·  EXTRAE EN LA META", heistCores, heistGoal)
+	contractProgress.Text = string.format("%d/%d", heistCores, heistGoal)
+	contractFill.Size = UDim2.fromScale(heistGoal > 0 and math.clamp(heistCores / heistGoal, 0, 1) or 0, 1)
+	if type(state.Speed) == "number" then
+		displaySpeed = math.max(displaySpeed, state.Speed)
+		setCurrentSpeed(state.Speed)
+		updateSpeedText()
+	end
+	if type(state.Best) == "number" then
+		currentBest = math.max(currentBest, state.Best)
+		bestLabel.Text = short(currentBest)
+	end
+	renderShop()
+	renderMissions()
+	updateRebirthButton()
+end
+
+togglePanel = function(name)
+	local target = (openName ~= name) and name or nil
+	openName = target
+	dimmer.Visible = target ~= nil
+	shopPanel.Visible = target == "shop"
+	missionsPanel.Visible = target == "missions"
+	topPanel.Visible = target == "top"
+	if target == "shop" then
+		renderShop()
+	elseif target == "missions" then
+		renderMissions()
+	elseif target == "top" then
+		renderTop()
+	end
+end
+
+closePanel = function()
+	togglePanel(nil)
+end
+
+shopButton.Activated:Connect(function()
+	togglePanel("shop")
+end)
+missionsButton.Activated:Connect(function()
+	togglePanel("missions")
+end)
+topButton.Activated:Connect(function()
+	togglePanel("top")
+end)
+dailyButton.Activated:Connect(function()
+	ClaimDaily:FireServer()
+end)
+rebirthButton.Activated:Connect(function()
+	Rebirth:FireServer()
+end)
+dimmer.Activated:Connect(function()
+	closePanel()
+end)
+
+-- Particulas y estela.
+local burstEmitter = nil
+
+local function ensureEmitter()
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	if not root then
+		return nil
+	end
+	if burstEmitter and burstEmitter.Parent == root then
+		return burstEmitter
+	end
+	if burstEmitter then
+		burstEmitter:Destroy()
+	end
+	burstEmitter = Instance.new("ParticleEmitter")
+	burstEmitter.Name = "Burst"
+	burstEmitter.Lifetime = NumberRange.new(0.35, 0.7)
+	burstEmitter.Speed = NumberRange.new(8, 16)
+	burstEmitter.SpreadAngle = Vector2.new(180, 180)
+	burstEmitter.Rate = 0
+	burstEmitter.Size = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.6),
+		NumberSequenceKeypoint.new(1, 0),
+	})
+	burstEmitter.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.2),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	burstEmitter.LightEmission = 1
+	burstEmitter.Parent = root
+	return burstEmitter
+end
+
+local function emitBurst(color, count)
+	local emitter = ensureEmitter()
+	if not emitter then
+		return
+	end
+	emitter.Color = ColorSequence.new(color)
+	emitter:Emit(count)
+end
+
+local function setupTrail(character)
+	local root = character:WaitForChild("HumanoidRootPart", 10)
+	if not root then
+		return
+	end
+	if trail then
+		trail:Destroy()
+	end
+	local attachment0 = Instance.new("Attachment")
+	attachment0.Position = Vector3.new(0.6, 0, 0.6)
+	attachment0.Parent = root
+	local attachment1 = Instance.new("Attachment")
+	attachment1.Position = Vector3.new(-0.6, 0, 0.6)
+	attachment1.Parent = root
+	trail = Instance.new("Trail")
+	trail.Attachment0 = attachment0
+	trail.Attachment1 = attachment1
+	trail.Lifetime = 0.35
+	trail.MinLength = 0.1
+	trail.WidthScale = NumberSequence.new(0.7)
+	trail.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.15),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	trail.LightEmission = 0.8
+	trail.Color = ColorSequence.new(rankFor(currentSpeed).Color)
+	trail.Parent = root
+end
+
+player.CharacterAdded:Connect(function(character)
+	task.wait(0.2)
+	setupTrail(character)
+	ensureEmitter()
+end)
+if player.Character then
+	task.spawn(function()
+		task.wait(0.2)
+		setupTrail(player.Character)
+		ensureEmitter()
+	end)
+end
+
+-- Camara.
+local shake = 0
+
+local function applyShake(deltaTime)
+	if shake <= 0 then
+		return
+	end
+	local camera = workspace.CurrentCamera
+	if not camera then
+		return
+	end
+	local amount = shake * 0.6
+	camera.CFrame = camera.CFrame
+		* CFrame.new((math.random() - 0.5) * amount, (math.random() - 0.5) * amount, 0)
+		* CFrame.Angles(0, 0, (math.random() - 0.5) * shake * 0.02)
+	shake = math.max(0, shake - deltaTime * 8)
+end
+
+FX.OnClientEvent:Connect(function(kind)
+	if kind == "Choque" then
+		flashScreen(C.red, 0.45)
+		shake = 1
+	elseif kind == "Boost" then
+		emitBurst(rankFor(currentSpeed).Color, 30)
+		flashScreen(C.accent, 0.8)
+	elseif kind == "Meta" then
+		flashScreen(C.yellow, 0.4)
+		emitBurst(C.yellow, 60)
+		shake = 0.5
+	elseif kind == "Renacer" then
+		displaySpeed = 0
+		currentSpeed = 0
+		updateSpeedText()
+		setCurrentSpeed(0)
+		updateRebirthButton()
+		flashScreen(C.green, 0.35)
+		emitBurst(C.green, 80)
+		shake = 0.7
+	elseif kind == "Mision" then
+		emitBurst(C.yellow, 20)
+	elseif kind == "Moneda" then
+		emitBurst(C.yellow, 6)
+	elseif kind == "HeistCore" then
+		emitBurst(C.yellow, 45)
+		flashScreen(C.yellow, 0.6)
+	elseif kind == "Daily" then
+		flashScreen(C.yellow, 0.35)
+		emitBurst(C.yellow, 90)
+		shake = 0.4
+	end
+end)
+
+Leaderboard.OnClientEvent:Connect(function(list)
+	if type(list) ~= "table" then
+		return
+	end
+	topData = list
+	if openName == "top" then
+		renderTop()
+	end
+end)
+
+SyncState.OnClientEvent:Connect(applyState)
+Notify.OnClientEvent:Connect(showToast)
+
+-- Input de teclado: refleja combo y velocidad al instante.
+local function registerKey()
+	local now = os.clock()
+	if now - lastKeyTime <= Config.ComboWindow then
+		combo = math.min(Config.ComboMax, combo + 1)
+	else
+		combo = 1
+	end
+	lastKeyTime = now
+	displaySpeed += 1
+	updateSpeedText()
+	updateComboText()
+end
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed or input.UserInputType ~= Enum.UserInputType.Keyboard then
+		return
+	end
+	registerKey()
+end)
+
+-- Boton tactil: mantener pulsado dispara +1.
+local mobileHeld = false
+
+local function pressMobile()
+	local now = os.clock()
+	registerKey()
+	if now - lastMobileSend >= 1 / 30 then
+		lastMobileSend = now
+		AddSpeed:FireServer()
+	end
+end
+
+mobileButton.InputBegan:Connect(function(input)
+	if input.UserInputType ~= Enum.UserInputType.Touch and input.UserInputType ~= Enum.UserInputType.MouseButton1 then
+		return
+	end
+	if mobileHeld then
+		return
+	end
+	mobileHeld = true
+	pressMobile()
+	task.spawn(function()
+		while mobileHeld do
+			task.wait(1 / 30)
+			if mobileHeld then
+				pressMobile()
+			end
+		end
+	end)
+end)
+
+mobileButton.InputEnded:Connect(function()
+	mobileHeld = false
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+		mobileHeld = false
+	end
+end)
+
+-- Stats del servidor.
+local leaderstats = player:WaitForChild("leaderstats")
+local speedStat = leaderstats:WaitForChild("Speed")
+local coinsStat = leaderstats:WaitForChild("Coins")
+local rebirthStat = leaderstats:WaitForChild("Rebirths")
+local bestStat = leaderstats:WaitForChild("Best")
+
+setCurrentSpeed(speedStat.Value)
+displaySpeed = speedStat.Value
+updateSpeedText()
+updateComboText()
+updateRebirthButton()
+
+speedStat.Changed:Connect(function(value)
+	setCurrentSpeed(value)
+	if value > displaySpeed or displaySpeed - value > 8 then
+		displaySpeed = value
+		updateSpeedText()
+	end
+	updateRebirthButton()
+end)
+
+coinsStat.Changed:Connect(function(value)
+	currentCoins = value
+	coinsLabel.Text = short(value)
+	renderShop()
+end)
+
+rebirthStat.Changed:Connect(function(value)
+	rebirthsLabel.Text = tostring(value)
+end)
+
+bestStat.Changed:Connect(function(value)
+	currentBest = math.max(currentBest, value)
+	bestLabel.Text = short(currentBest)
+end)
+
+currentCoins = coinsStat.Value
+coinsLabel.Text = short(currentCoins)
+rebirthsLabel.Text = tostring(rebirthStat.Value)
+currentBest = math.max(currentBest, bestStat.Value)
+bestLabel.Text = short(currentBest)
+
+task.spawn(function()
+	for _ = 1, 12 do
+		local ok, result = pcall(function()
+			return GetState:InvokeServer()
+		end)
+		if ok and type(result) == "table" then
+			applyState(result)
+			return
+		end
+		task.wait(0.5)
+	end
+end)
+
+local lastZoneIndex = 0
+local lastRankName = ""
+
+RunService.RenderStepped:Connect(function(deltaTime)
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	if root then
+		local progress = math.clamp(-root.Position.Z / Config.TrackLength, 0, 1)
+		progressFill.Size = UDim2.fromScale(progress, 1)
+		local zone, zoneIndex = zoneForZ(root.Position.Z)
+		if zoneIndex ~= lastZoneIndex then
+			lastZoneIndex = zoneIndex
+			zoneLabel.Text = string.format("ZONA %d · %s", zoneIndex, zone.Name)
+			zoneLabel.TextColor3 = zone.Accent
+			progressFill.BackgroundColor3 = zone.Accent
+			showZone(zoneIndex)
+		end
+	end
+
+	if combo > 0 and os.clock() - lastKeyTime > Config.ComboWindow then
+		combo = 0
+		updateComboText()
+	end
+
+	local rank = rankFor(currentSpeed)
+	if rank.Name ~= lastRankName then
+		lastRankName = rank.Name
+		if trail then
+			trail.Color = ColorSequence.new(rank.Color)
+		end
+	end
+
+	local camera = workspace.CurrentCamera
+	if camera then
+		local targetFov = 70 + math.min(30, math.log10(1 + currentSpeed) * 7)
+		camera.FieldOfView += (targetFov - camera.FieldOfView) * math.min(1, deltaTime * 4)
+	end
+
+	applyShake(deltaTime)
+end)
+]]></string>
+        </Properties>
+      </Item>
+    </Item>
+  </Item>
+</roblox>
