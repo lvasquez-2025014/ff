@@ -99,6 +99,12 @@
     <ClInclude Include="Features\Visuals\EspLineFeature.h">
       <Filter>Features\Visuals</Filter>
     </ClInclude>
+    <ClInclude Include="Features\Visuals\EspBox3dFeature.h">
+      <Filter>Features\Visuals</Filter>
+    </ClInclude>
+    <ClInclude Include="Features\Exploits\aimbot.h">
+      <Filter>Features\Exploits</Filter>
+    </ClInclude>
     <ClInclude Include="UI\Theme.h">
       <Filter>UI</Filter>
     </ClInclude>
@@ -136,7 +142,6 @@
     <ClCompile Include="MinHook\src\buffer.c" />
     <ClCompile Include="MinHook\src\hook.c" />
     <ClCompile Include="MinHook\src\trampoline.c" />
-    <ClCompile Include="Features\Exploits\aimbot.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\README.txt" />

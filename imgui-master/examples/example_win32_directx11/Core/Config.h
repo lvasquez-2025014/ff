@@ -9,9 +9,16 @@
 namespace Core {
 
     struct ConfigData {
+        // --- Estado global del juego (usado por Aimbot Rage) ---
+        int Width = -1;
+        int Height = -1;
+        bool HaveMatrix = false;
+        uintptr_t LocalPlayer = 0;
+
         // Visuals (ESP)
         bool EspLineEnabled = true;
         bool EspBoxEnabled = true;
+        bool EspBox3dEnabled = false; // Nueva: Caja 3D (cubo wireframe)
         int  EspBoxStyle = 1; // 0: 2D Box, 1: Corner Box, 2: Filled Box
         bool EspHealthEnabled = true;
         bool EspSkeletonEnabled = true;
@@ -42,12 +49,19 @@ namespace Core {
         int ActiveTab = 0;
         float TabAlpha = 1.0f;
         ImVec4 ThemeAccent = ImVec4(0.0f, 0.65f, 1.0f, 1.0f);
-        // --- AIMBOT VISIBLE ---
+        // --- AIMBOT VISIBLE (Suave, por tecla) ---
         bool AimbotEnabled = false;
         bool AimbotDrawFov = true;
         float AimbotFov = 150.0f;      // Radio del círculo
         float AimbotSmooth = 3.0f;     // 1.0 = Muy rápido, 10.0 = Muy suave
         int AimbotKey = 0x02;          // 0x02 = Click Derecho, 0x05 = Click Izquierdo
+        // --- AIMBOT RAGE (Continuo, estilo AimbotRage.cs) ---
+        bool AimBotRage = false;
+        int  AimBotTargetMode = 0;     // 0: Cerca de mira, 1: 360°, 2: Vida baja, 3: Cerca del jugador
+        bool AimBotIgnoreKnocked = false;
+        float AimBotMaxDistance = 500.0f;
+        float AimBotFov = 150.0f;
+        int  AimBotSmoothMs = 5;       // Sleep entre disparos de aim (ms)
 
         // Authentication & Session
         bool Authenticated = false;

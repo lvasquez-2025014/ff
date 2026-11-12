@@ -194,6 +194,8 @@
     <ClInclude Include="Features\IFeature.h" />
     <ClInclude Include="Features\FeatureManager.h" />
     <ClInclude Include="Features\Visuals\EspLineFeature.h" />
+    <ClInclude Include="Features\Visuals\EspBox3dFeature.h" />
+    <ClInclude Include="Features\Exploits\aimbot.h" />
     <ClInclude Include="UI\Theme.h" />
     <ClInclude Include="UI\Menu.h" />
   </ItemGroup>
@@ -205,7 +207,6 @@
     <ClCompile Include="..\..\imgui_widgets.cpp" />
     <ClCompile Include="..\..\backends\imgui_impl_dx11.cpp" />
     <ClCompile Include="..\..\backends\imgui_impl_win32.cpp" />
-    <ClCompile Include="Features\Exploits\aimbot.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="MinHook\src\buffer.c" />
     <ClCompile Include="MinHook\src\hde\hde32.c" />

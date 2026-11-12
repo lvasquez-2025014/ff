@@ -11,7 +11,8 @@
 #include "Features/IFeature.h"
 #include "Features/FeatureManager.h"
 #include "Features/Visuals/EspLineFeature.h"
-#include "Features/Exploits/aimbot.h"
+#include "Features/Visuals/EspBox3dFeature.h"
+//#include "Features/Exploits/AimbotRageFeature.h"
 #include "UI/Theme.h"
 #include "UI/Menu.h"
 
@@ -22,9 +23,10 @@ void InitializeArchitecture() {
 
     // 2. Registrar características en el gestor modular
     auto& fm = Features::FeatureManager::Get();
-    fm.RegisterFeature(std::make_shared<Features::Exploits::AimbotFeature>());
+    //fm.RegisterFeature(std::make_shared<Features::Exploits::AimbotRageFeature>());
     // Visuales
     fm.RegisterFeature(std::make_shared<Features::Visuals::EspLineFeature>());
+    fm.RegisterFeature(std::make_shared<Features::Visuals::EspBox3dFeature>());
 }
 
 // Comprobación de permisos de Administrador
@@ -96,6 +98,7 @@ int maindll() {
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
 
+    UI::SetupImGuiStyle();
     ImGuiStyle& style = ImGui::GetStyle();
     style.ScaleAllSizes(main_scale);
     style.FontScaleDpi = main_scale;
